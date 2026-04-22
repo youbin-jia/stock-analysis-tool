@@ -38,3 +38,9 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Claude Code
+.claude/
+
+# App data
+backend/data/

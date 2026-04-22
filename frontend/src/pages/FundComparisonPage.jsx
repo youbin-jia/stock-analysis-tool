@@ -1,8 +1,8 @@
 import { useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import StockComparison from '../components/StockComparison';
+import FundComparison from '../components/FundComparison';
 
-function ComparisonPage() {
+function FundComparisonPage() {
   const location = useLocation();
   const [initialCodes, setInitialCodes] = useState([]);
 
@@ -14,9 +14,9 @@ function ComparisonPage() {
 
   return (
     <div>
-      <StockComparison initialCodes={initialCodes} />
+      <FundComparison initialCodes={initialCodes} />
     </div>
   );
 }
 
-export default ComparisonPage;
+export default FundComparisonPage;

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from api.stocks import router as stocks_router
+from api.funds import router as funds_router
 from api.comparison import router as comparison_router
 from tasks.scheduler import init_database_and_cache, start_scheduler, stop_scheduler
 
@@ -37,6 +38,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(stocks_router)
+app.include_router(funds_router)
 app.include_router(comparison_router)
 
 

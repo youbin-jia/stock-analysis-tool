@@ -1,41 +1,44 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Statistic, Button, Space, Spin, message } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, CompareArrowsOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Button, Spin, Empty, Tag } from 'antd';
+import {
+  SwapOutlined,
+  RiseOutlined,
+  FallOutlined,
+} from '@ant-design/icons';
 import StockChart from '../components/StockChart';
+import { useTheme } from '../context/ThemeContext';
 import axios from 'axios';
 
 function StockDetail() {
   const { code } = useParams();
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   const [stockInfo, setStockInfo] = useState(null);
   const [realtimeData, setRealtimeData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
+    setStockInfo(null);
+    setRealtimeData(null);
     fetchStockData();
-    const interval = setInterval(fetchRealtimeData, 30000); // 每30秒刷新实时数据
+    const interval = setInterval(fetchRealtimeData, 30000);
     return () => clearInterval(interval);
   }, [code]);
 
   const fetchStockData = async () => {
-    setLoading(true);
     try {
-      await Promise.all([fetchStockInfo(), fetchRealtimeData()]);
+      const [infoRes, rtRes] = await Promise.all([
+        axios.get(`/api/stocks/info/${code}`).catch(() => null),
+        axios.get(`/api/stocks/realtime/${code}`).catch(() => null),
+      ]);
+      if (infoRes) setStockInfo(infoRes.data);
+      if (rtRes) setRealtimeData(rtRes.data);
     } catch (error) {
       console.error('获取股票数据失败:', error);
-      message.error('获取股票数据失败');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchStockInfo = async () => {
-    try {
-      const response = await axios.get(`/api/stocks/info/${code}`);
-      setStockInfo(response.data);
-    } catch (error) {
-      console.error('获取股票信息失败:', error);
     }
   };
 
@@ -48,106 +51,148 @@ function StockDetail() {
     }
   };
 
-  const addToComparison = () => {
-    navigate('/comparison', { state: { code } });
-  };
-
   if (loading) {
-    return <Spin tip="加载中..." style={{ display: 'block', marginTop: 100 }} />;
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 100 }}>
+        <Spin size="large" />
+      </div>
+    );
   }
 
-  const isUp = realtimeData?.change_percent >= 0;
+  if (!stockInfo && !realtimeData) {
+    return (
+      <Empty
+        description="暂无该股票数据"
+        style={{ marginTop: 100 }}
+      />
+    );
+  }
+
+  const name = stockInfo?.name || realtimeData?.name || code;
+  const isUp = (realtimeData?.change_percent || 0) >= 0;
+  const upColor = isDark ? '#ff4d4f' : '#d93026';
+  const downColor = isDark ? '#73d13d' : '#238636';
+  const color = isUp ? upColor : downColor;
+  const Icon = isUp ? RiseOutlined : FallOutlined;
+
+  const stats = realtimeData
+    ? [
+        { label: '今开', value: realtimeData.open, suffix: '元' },
+        { label: '最高', value: realtimeData.high, suffix: '元' },
+        { label: '最低', value: realtimeData.low, suffix: '元' },
+        { label: '成交量', value: realtimeData.volume, suffix: '手' },
+        { label: '成交额', value: realtimeData.amount, suffix: '万' },
+        { label: '涨跌额', value: realtimeData.change, suffix: '元', isChange: true },
+      ]
+    : [];
 
   return (
     <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button onClick={() => navigate(-1)}>返回</Button>
-        <Button
-          type="primary"
-          icon={<CompareArrowsOutlined />}
-          onClick={addToComparison}
-        >
-          加入对比
-        </Button>
-      </Space>
-
-      <Card title={`${stockInfo?.name || code} (${code})`} style={{ marginBottom: 16 }}>
-        <Row gutter={16}>
-          <Col span={6}>
-            <Statistic
-              title="最新价"
-              value={realtimeData?.price || 0}
-              precision={2}
-              prefix={isUp ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-              valueStyle={{ color: isUp ? '#cf1322' : '#3f8600' }}
-              suffix="元"
-            />
+      {/* 顶部股票信息栏 */}
+      <Card
+        style={{ marginBottom: 20, borderRadius: 12, background: 'var(--bg-card)' }}
+        styles={{ body: { padding: '20px 28px' } }}
+      >
+        <Row justify="space-between" align="middle" wrap={false}>
+          <Col>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+              <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {name}
+              </span>
+              <Tag style={{ fontSize: 13, padding: '2px 10px', background: 'var(--bg-primary)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                {code}
+              </Tag>
+              <Tag color={stockInfo?.market === 'SH' ? 'blue' : 'cyan'} style={{ fontSize: 12 }}>
+                {stockInfo?.market === 'SH' ? '上海' : '深圳'}
+              </Tag>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+              {stockInfo?.industry || '—'}
+            </div>
           </Col>
-          <Col span={6}>
-            <Statistic
-              title="涨跌幅"
-              value={realtimeData?.change_percent || 0}
-              precision={2}
-              prefix={isUp ? '+' : ''}
-              valueStyle={{ color: isUp ? '#cf1322' : '#3f8600' }}
-              suffix="%"
-            />
-          </Col>
-          <Col span={6}>
-            <Statistic
-              title="成交量"
-              value={realtimeData?.volume || 0}
-              suffix="手"
-            />
-          </Col>
-          <Col span={6}>
-            <Statistic
-              title="成交额"
-              value={realtimeData?.amount || 0}
-              precision={2}
-              suffix="万"
-            />
+          <Col>
+            <Button
+              type="primary"
+              icon={<SwapOutlined />}
+              onClick={() => navigate('/comparison', { state: { code } })}
+            >
+              加入对比
+            </Button>
           </Col>
         </Row>
-        <Row gutter={16} style={{ marginTop: 16 }}>
-          <Col span={6}>
-            <Statistic
-              title="开盘"
-              value={realtimeData?.open || 0}
-              precision={2}
-              suffix="元"
-            />
+
+        {/* 核心价格区 */}
+        <Row align="bottom" style={{ marginTop: 20 }} gutter={32}>
+          <Col>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <span
+                style={{
+                  fontSize: 40,
+                  fontWeight: 700,
+                  color,
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {realtimeData ? realtimeData.price.toFixed(2) : '—'}
+              </span>
+              <span
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Icon />
+                {realtimeData
+                  ? `${isUp ? '+' : ''}${realtimeData.change_percent.toFixed(2)}%`
+                  : '—'}
+              </span>
+              <span
+                style={{
+                  fontSize: 15,
+                  color,
+                  fontWeight: 500,
+                }}
+              >
+                {realtimeData
+                  ? `${isUp ? '+' : ''}${realtimeData.change.toFixed(2)}`
+                  : '—'}
+              </span>
+            </div>
           </Col>
-          <Col span={6}>
-            <Statistic
-              title="最高"
-              value={realtimeData?.high || 0}
-              precision={2}
-              suffix="元"
-            />
-          </Col>
-          <Col span={6}>
-            <Statistic
-              title="最低"
-              value={realtimeData?.low || 0}
-              precision={2}
-              suffix="元"
-            />
-          </Col>
-          <Col span={6}>
-            <Statistic
-              title="涨跌额"
-              value={realtimeData?.change || 0}
-              precision={2}
-              prefix={isUp ? '+' : ''}
-              valueStyle={{ color: isUp ? '#cf1322' : '#3f8600' }}
-              suffix="元"
-            />
-          </Col>
+        </Row>
+
+        {/* 详细数据网格 */}
+        <Row gutter={[24, 16]} style={{ marginTop: 20 }}>
+          {stats.map((s) => (
+            <Col key={s.label} xs={8} sm={8} md={4}>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 2 }}>
+                {s.label}
+              </div>
+              <div
+                style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: s.isChange ? color : 'var(--text-primary)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {typeof s.value === 'number' ? s.value.toLocaleString() : '—'}
+                <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 2 }}>
+                  {s.suffix}
+                </span>
+              </div>
+            </Col>
+          ))}
         </Row>
       </Card>
 
-      <StockChart stockCode={code} stockName={stockInfo?.name || code} />
+      {/* K 线图 */}
+      <StockChart stockCode={code} stockName={name} />
     </div>
   );
 }

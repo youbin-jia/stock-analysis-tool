@@ -1,7 +1,8 @@
 import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from services.stock_service import StockService
+from services.fund_service import FundService
 from services.cache_service import CacheService
 from services.data_service import DataService
 from models.database import init_database
@@ -44,35 +45,107 @@ async def update_realtime_data():
 
 async def update_daily_data():
     """
-    每日收盘后更新历史数据
+    每日收盘后增量更新历史数据
     每日15:30执行
     """
     try:
-        print(f"[{datetime.now()}] 更新每日历史数据...")
+        print(f"[{datetime.now()}] 增量更新历史数据...")
 
-        # 获取所有股票列表
+        # 获取热门股票列表
         stock_list = StockService.get_stock_list()
+        popular_stocks = stock_list[:50]  # 更新前50只热门股票
 
-        # 计算日期范围（昨天到今天）
-        today = datetime.now()
-        yesterday = today - timedelta(days=1)
-        start_date = yesterday.strftime("%Y-%m-%d")
-        end_date = today.strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+        frequencies = [
+            ("d", "日线"),
+            ("w", "周线"),
+            ("m", "月线"),
+        ]
 
         updated_count = 0
-        for stock in stock_list[:100]:  # 先更新前100只，避免过载
+        for stock in popular_stocks:
             code = stock['code']
-            try:
-                data = StockService.get_historical_data(code, start_date, end_date)
-                if data:
-                    DataService.save_to_database(code, data)
-                    updated_count += 1
-            except Exception as e:
-                print(f"更新股票 {code} 数据错误: {e}")
+            for freq, freq_name in frequencies:
+                try:
+                    latest_date = DataService.get_latest_date_in_db(code, freq)
 
-        print(f"已更新 {updated_count} 只股票的历史数据")
+                    if latest_date:
+                        # 增量更新：从最新日期的下一天到今天
+                        next_date = (latest_date + timedelta(days=1)).strftime("%Y-%m-%d")
+                        if next_date <= today:
+                            data = StockService.get_historical_data(code, next_date, today, freq)
+                            if data:
+                                DataService.save_to_database(code, data, freq)
+                                updated_count += 1
+                                print(f"  更新 {code} {freq_name}: {len(data)} 条")
+                    else:
+                        # 首次下载：拉取近一年数据
+                        start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+                        data = StockService.get_historical_data(code, start_date, today, freq)
+                        if data:
+                            DataService.save_to_database(code, data, freq)
+                            updated_count += 1
+                            print(f"  首次下载 {code} {freq_name}: {len(data)} 条")
+                except Exception as e:
+                    print(f"  更新股票 {code} {freq_name} 错误: {e}")
+
+        print(f"已更新 {updated_count} 组历史数据")
     except Exception as e:
         print(f"更新每日数据错误: {e}")
+
+
+async def update_fund_data():
+    """
+    每日更新基金历史净值数据
+    每日 16:00 执行（基金净值通常在15:00收盘后更新）
+    """
+    try:
+        print(f"[{datetime.now()}] 增量更新基金净值数据...")
+
+        # 获取基金列表（优先从缓存）
+        fund_list = FundService.get_fund_list()
+        if not fund_list:
+            print("获取基金列表失败，跳过更新")
+            return
+
+        # 缓存基金列表到 Redis
+        CacheService.set_cached_fund_list(fund_list)
+
+        # 只更新前 100 只热门基金（控制请求量）
+        popular_funds = fund_list[:100]
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        updated_count = 0
+
+        for fund in popular_funds:
+            code = fund['code']
+            try:
+                latest_date = DataService.get_fund_latest_date_in_db(code)
+
+                if latest_date:
+                    # 增量更新
+                    next_date = (latest_date + timedelta(days=1)).strftime("%Y-%m-%d")
+                    if next_date <= today:
+                        data = FundService.get_fund_history(code, next_date, today)
+                        if data:
+                            DataService.save_fund_to_database(code, data)
+                            updated_count += 1
+                            print(f"  更新基金 {code}: {len(data)} 条")
+                else:
+                    # 首次下载：拉取全部历史数据（eastmoney 一次返回全部，调用成本相同）
+                    data = FundService.get_fund_history(code, None, None)
+                    if data:
+                        DataService.save_fund_to_database(code, data)
+                        updated_count += 1
+                        print(f"  首次下载基金 {code}: {len(data)} 条（全部历史）")
+            except Exception as e:
+                print(f"  更新基金 {code} 错误: {e}")
+
+        print(f"已更新 {updated_count} 只基金净值数据")
+    except Exception as e:
+        print(f"更新基金数据错误: {e}")
 
 
 async def init_database_and_cache():
@@ -107,13 +180,23 @@ def start_scheduler():
         replace_existing=True
     )
 
-    # 每日15:30更新历史数据
+    # 每日15:30增量更新历史数据
     scheduler.add_job(
         update_daily_data,
         'cron',
         hour=15,
         minute=30,
         id='update_daily',
+        replace_existing=True
+    )
+
+    # 每日16:00增量更新基金净值数据
+    scheduler.add_job(
+        update_fund_data,
+        'cron',
+        hour=16,
+        minute=0,
+        id='update_fund',
         replace_existing=True
     )
 
@@ -128,6 +211,3 @@ def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown()
         print("定时任务调度器已停止")
-
-
-from datetime import timedelta

@@ -67,3 +67,43 @@ class ComparisonResponse(BaseModel):
     stocks: List[ComparisonData]
     start_date: str
     end_date: str
+
+
+# ========== 基金相关模型 ==========
+
+class FundInfo(BaseModel):
+    """基金基本信息"""
+    code: str
+    name: str
+    fund_type: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FundListItem(BaseModel):
+    """基金列表项"""
+    code: str
+    name: str
+    type: Optional[str] = None
+
+
+class FundHistoryData(BaseModel):
+    """基金历史净值数据"""
+    date: str
+    nav: float
+    change_percent: float
+
+
+class FundComparisonData(BaseModel):
+    """基金对比数据"""
+    code: str
+    name: str
+    data: List[dict]
+
+
+class FundComparisonResponse(BaseModel):
+    """基金对比响应"""
+    funds: List[FundComparisonData]
+    start_date: str
+    end_date: str

@@ -27,17 +27,17 @@ const COLORS_DARK = [
   '#b37feb', '#ff85c0', '#5cdbd3', '#ff9c6e',
 ];
 
-function StockComparison({ initialCodes = [] }) {
+function FundComparison({ initialCodes = [] }) {
   const { isDark } = useTheme();
   const themeColors = isDark ? COLORS_DARK : COLORS;
   const gridColor = isDark ? '#2a2a2a' : '#f0f0f0';
   const axisColor = isDark ? '#737373' : '#888888';
   const textColor = isDark ? '#e8e8e8' : '#333333';
 
-  const [selectedStocks, setSelectedStocks] = useState([]);
+  const [selectedFunds, setSelectedFunds] = useState([]);
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [period, setPeriod] = useState('1y');
+  const [period, setPeriod] = useState('all');
   const [normalize, setNormalize] = useState(true);
   const [searchOptions, setSearchOptions] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -52,31 +52,31 @@ function StockComparison({ initialCodes = [] }) {
 
   useEffect(() => {
     if (initialCodes.length > 0) {
-      const initStocks = initialCodes.map((code) => ({ code, name: code }));
-      setSelectedStocks(initStocks);
+      const initFunds = initialCodes.map((code) => ({ code, name: code }));
+      setSelectedFunds(initFunds);
     }
   }, []);
 
   useEffect(() => {
-    if (selectedStocks.length > 0) {
+    if (selectedFunds.length > 0) {
       fetchComparisonData();
     } else {
       setChartData(null);
     }
-  }, [period, normalize, selectedStocks]);
+  }, [period, normalize, selectedFunds]);
 
   const fetchComparisonData = async () => {
-    if (selectedStocks.length === 0) return;
+    if (selectedFunds.length === 0) return;
 
     setLoading(true);
     try {
-      const codes = selectedStocks.map((s) => s.code).join(',');
-      const response = await axios.get('/api/comparison', {
+      const codes = selectedFunds.map((s) => s.code).join(',');
+      const response = await axios.get('/api/funds/comparison', {
         params: { codes, period, normalize },
       });
       setChartData(response.data);
     } catch (error) {
-      console.error('获取对比数据失败:', error);
+      console.error('获取基金对比数据失败:', error);
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ function StockComparison({ initialCodes = [] }) {
     }
     setSearchLoading(true);
     try {
-      const res = await axios.get('/api/stocks/search', { params: { keyword: value } });
+      const res = await axios.get('/api/funds/search', { params: { keyword: value } });
       setSearchOptions(
         res.data.map((item) => ({
           value: item.code,
@@ -108,28 +108,28 @@ function StockComparison({ initialCodes = [] }) {
     }
   };
 
-  const handleAddStock = async (code) => {
-    if (!code || selectedStocks.some((s) => s.code === code)) return;
+  const handleAddFund = async (code) => {
+    if (!code || selectedFunds.some((s) => s.code === code)) return;
     try {
-      const res = await axios.get(`/api/stocks/info/${code}`);
-      setSelectedStocks((prev) => [...prev, res.data]);
+      const res = await axios.get(`/api/funds/info/${code}`);
+      setSelectedFunds((prev) => [...prev, res.data]);
     } catch {
       // ignore
     }
   };
 
-  const handleRemoveStock = (code) => {
-    setSelectedStocks(selectedStocks.filter((s) => s.code !== code));
+  const handleRemoveFund = (code) => {
+    setSelectedFunds(selectedFunds.filter((s) => s.code !== code));
   };
 
   const option = useMemo(() => {
-    if (!chartData?.stocks?.length) return null;
+    if (!chartData?.funds?.length) return null;
 
-    const dates = chartData.stocks[0]?.data.map((item) => item.date) || [];
-    const series = chartData.stocks.map((stock, index) => ({
-      name: stock.name,
+    const dates = chartData.funds[0]?.data.map((item) => item.date) || [];
+    const series = chartData.funds.map((fund, index) => ({
+      name: fund.name,
       type: 'line',
-      data: stock.data.map((item) => item.value),
+      data: fund.data.map((item) => item.value),
       smooth: true,
       symbol: 'none',
       lineStyle: { width: 2.5, color: themeColors[index % themeColors.length] },
@@ -159,7 +159,7 @@ function StockComparison({ initialCodes = [] }) {
         },
       },
       legend: {
-        data: chartData.stocks.map((s) => s.name),
+        data: chartData.funds.map((s) => s.name),
         top: 8,
         textStyle: { color: axisColor },
       },
@@ -179,7 +179,7 @@ function StockComparison({ initialCodes = [] }) {
       },
       yAxis: {
         type: 'value',
-        name: normalize ? '收益率 (%)' : '价格 (元)',
+        name: normalize ? '收益率 (%)' : '净值 (元)',
         nameTextStyle: { color: axisColor, fontSize: 11 },
         axisLine: { show: false },
         axisTick: { show: false },
@@ -207,21 +207,21 @@ function StockComparison({ initialCodes = [] }) {
     };
   }, [chartData, isDark, themeColors, gridColor, axisColor, textColor, normalize]);
 
-  if (selectedStocks.length === 0) {
+  if (selectedFunds.length === 0) {
     return (
       <Card style={{ borderRadius: 12, background: 'var(--bg-card)' }}>
         <div style={{ padding: '40px 0', textAlign: 'center' }}>
-          <Empty description="请添加股票进行对比">
+          <Empty description="请添加基金进行对比">
             <div style={{ marginTop: 16, width: 300, margin: '16px auto' }}>
               <AutoComplete
                 style={{ width: '100%' }}
                 options={searchOptions}
                 onSearch={handleSearch}
-                onSelect={handleAddStock}
+                onSelect={handleAddFund}
                 loading={searchLoading}
               >
                 <Input
-                  placeholder="搜索股票代码或名称"
+                  placeholder="搜索基金代码或名称"
                   prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                   suffix={
                     <Button
@@ -258,11 +258,11 @@ function StockComparison({ initialCodes = [] }) {
           style={{ width: 240 }}
           options={searchOptions}
           onSearch={handleSearch}
-          onSelect={handleAddStock}
+          onSelect={handleAddFund}
           loading={searchLoading}
         >
           <Input
-            placeholder="搜索添加股票"
+            placeholder="搜索添加基金"
             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
             style={{ borderRadius: 6 }}
           />
@@ -277,24 +277,24 @@ function StockComparison({ initialCodes = [] }) {
         <Segmented
           options={[
             { label: '收益率', value: true },
-            { label: '原始价格', value: false },
+            { label: '原始净值', value: false },
           ]}
           value={normalize}
           onChange={setNormalize}
         />
       </div>
 
-      {/* 已选股票标签 */}
+      {/* 已选基金标签 */}
       <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {selectedStocks.map((stock, idx) => (
+        {selectedFunds.map((fund, idx) => (
           <Tag
-            key={stock.code}
+            key={fund.code}
             color={themeColors[idx % themeColors.length]}
             closable
-            onClose={() => handleRemoveStock(stock.code)}
+            onClose={() => handleRemoveFund(fund.code)}
             style={{ fontSize: 13, padding: '4px 10px', borderRadius: 6 }}
           >
-            {stock.name} ({stock.code})
+            {fund.name} ({fund.code})
           </Tag>
         ))}
       </div>
@@ -304,7 +304,7 @@ function StockComparison({ initialCodes = [] }) {
         <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
           <Spin size="large" />
         </div>
-      ) : chartData?.stocks?.length > 0 ? (
+      ) : chartData?.funds?.length > 0 ? (
         <ReactECharts option={option} style={{ height: 480 }} />
       ) : (
         <Empty description="暂无对比数据" style={{ padding: 60 }} />
@@ -313,4 +313,4 @@ function StockComparison({ initialCodes = [] }) {
   );
 }
 
-export default StockComparison;
+export default FundComparison;

@@ -31,6 +31,7 @@ class StockHistory(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     stock_code = Column(String(10), index=True, nullable=False)
     trade_date = Column(Date, index=True, nullable=False)
+    frequency = Column(String(5), index=True, nullable=False, default="d")  # d=日线 w=周线 m=月线
     open_price = Column(Float)
     close_price = Column(Float)
     high_price = Column(Float)
@@ -41,11 +42,27 @@ class StockHistory(Base):
     updated_at = Column(DateTime)
 
 
-# 创建索引
-def create_indexes():
-    """创建额外的索引以提高查询性能"""
-    from sqlalchemy import Index
-    Index('idx_stock_date', StockHistory.stock_code, StockHistory.trade_date, unique=True)
+class Fund(Base):
+    """基金基本信息表"""
+    __tablename__ = "funds"
+
+    code = Column(String(10), primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    fund_type = Column(String(30))
+    created_at = Column(DateTime)
+
+
+class FundHistory(Base):
+    """基金历史净值数据表"""
+    __tablename__ = "fund_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    fund_code = Column(String(10), index=True, nullable=False)
+    trade_date = Column(Date, index=True, nullable=False)
+    nav = Column(Float)  # 单位净值
+    adjusted_nav = Column(Float)  # 复权净值（考虑份额拆分/分红）
+    change_percent = Column(Float)  # 日涨跌幅
+    updated_at = Column(DateTime)
 
 
 def init_database():

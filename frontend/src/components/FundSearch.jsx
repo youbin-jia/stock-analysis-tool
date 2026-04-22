@@ -4,40 +4,38 @@ import { SearchOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-function StockSearch({ onSearch, style = {} }) {
-  const [allStocks, setAllStocks] = useState([]);
+function FundSearch({ onSearch, style = {} }) {
+  const [allFunds, setAllFunds] = useState([]);
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // 组件挂载时加载全量股票列表
   useEffect(() => {
-    axios.get('/api/stocks/list')
+    axios.get('/api/funds/list')
       .then((res) => {
-        setAllStocks(res.data || []);
+        setAllFunds(res.data || []);
       })
       .catch(() => {
-        setAllStocks([]);
+        setAllFunds([]);
       });
   }, []);
 
-  // 本地模糊匹配
-  const filterStocks = useCallback((value) => {
+  const filterFunds = useCallback((value) => {
     if (!value || value.length === 0) {
       return [];
     }
     const lower = value.toLowerCase();
-    return allStocks
+    return allFunds
       .filter(
         (item) =>
           item.code.includes(lower) ||
           item.name.toLowerCase().includes(lower)
       )
       .slice(0, 20);
-  }, [allStocks]);
+  }, [allFunds]);
 
   const handleSearch = (value) => {
-    const filtered = filterStocks(value);
+    const filtered = filterFunds(value);
     setOptions(
       filtered.map((item) => ({
         value: item.code,
@@ -55,7 +53,7 @@ function StockSearch({ onSearch, style = {} }) {
     if (onSearch) {
       onSearch(value);
     } else {
-      navigate(`/detail/${value}`);
+      navigate(`/fund/${value}`);
     }
     setOptions([]);
   };
@@ -73,7 +71,7 @@ function StockSearch({ onSearch, style = {} }) {
       options={options}
       onSearch={handleSearch}
       onSelect={handleSelect}
-      placeholder="搜索股票代码或名称"
+      placeholder="搜索基金代码或名称"
       loading={loading}
     >
       <Input
@@ -85,4 +83,4 @@ function StockSearch({ onSearch, style = {} }) {
   );
 }
 
-export default StockSearch;
+export default FundSearch;

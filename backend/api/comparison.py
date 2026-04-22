@@ -13,27 +13,16 @@ async def compare_stocks(
     start: Optional[str] = None,
     end: Optional[str] = None,
     period: Optional[str] = Query("1y", description="时间周期: 1m, 3m, 6m, 1y, all"),
-    normalize: bool = Query(True, description="是否归一化（计算收益率）")
+    normalize: bool = Query(True, description="是否归一化（计算收益率）"),
+    frequency: Optional[str] = Query("d", description="K线频率: d=日线, w=周线, m=月线"),
 ):
     """
     多股票对比
-
-    Args:
-        codes: 股票代码，逗号分隔
-        start: 开始日期 YYYY-MM-DD（可选）
-        end: 结束日期 YYYY-MM-DD（可选）
-        period: 时间周期（当start和end都为空时使用）
-        normalize: 是否归一化（计算收益率）
-
-    Returns:
-        对比数据
     """
-    # 解析股票代码
     code_list = [c.strip() for c in codes.split(',')]
     if not code_list:
         raise HTTPException(status_code=400, detail="At least one stock code is required")
 
-    # 计算日期范围
     if not start or not end:
         end_date = datetime.now()
         if period == "1m":
@@ -45,15 +34,13 @@ async def compare_stocks(
         elif period == "1y":
             start_date = end_date - timedelta(days=365)
         else:  # all
-            start_date = end_date - timedelta(days=3650)  # 10年前
+            start_date = end_date - timedelta(days=3650)
 
         start = start_date.strftime("%Y-%m-%d")
         end = end_date.strftime("%Y-%m-%d")
 
-    # 获取对比数据
-    comparison_data = DataService.compare_stocks(code_list, start, end, normalize)
+    comparison_data = DataService.compare_stocks(code_list, start, end, normalize, frequency)
 
-    # 构建响应
     stocks_data = []
     for stock in comparison_data['stocks']:
         stocks_data.append({

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from services.stock_service import StockService
 from services.data_service import DataService
 from services.cache_service import CacheService
+from models.database import get_db
 from models.schemas import (
     StockInfo, StockListItem, RealtimeData,
     HistoryData
@@ -14,29 +15,17 @@ router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
 @router.get("/realtime/{code}", response_model=RealtimeData)
 async def get_realtime_stock(code: str):
-    """
-    获取单只股票实时行情
-
-    Args:
-        code: 股票代码，如 600519
-
-    Returns:
-        实时行情数据
-    """
-    # 先检查缓存
+    """获取单只股票实时行情"""
     cached_data = CacheService.get_cached_realtime(code)
     if cached_data:
         return cached_data
 
-    # 从API获取
     data = StockService.get_realtime_data(code)
     if not data:
         raise HTTPException(status_code=404, detail="Stock not found")
 
-    # 缓存数据
     CacheService.set_cached_realtime(code, data)
 
-    # 保存股票信息到数据库
     stock_info = StockService.get_stock_info(code)
     if stock_info:
         DataService.save_stock_info(code, stock_info)
@@ -49,21 +38,13 @@ async def get_stock_history(
     code: str,
     start: Optional[str] = None,
     end: Optional[str] = None,
-    period: Optional[str] = Query("1m", description="时间周期: 1m, 3m, 6m, 1y, all")
+    period: Optional[str] = Query("1y", description="时间周期: 1m, 3m, 6m, 1y, all"),
+    frequency: Optional[str] = Query("d", description="K线频率: d=日线, w=周线, m=月线"),
 ):
     """
     获取股票历史K线数据
-
-    Args:
-        code: 股票代码
-        start: 开始日期 YYYY-MM-DD（可选）
-        end: 结束日期 YYYY-MM-DD（可选）
-        period: 时间周期（当start和end都为空时使用）
-
-    Returns:
-        历史K线数据列表
+    优先从本地数据库读取，缺失部分从 baostock 增量补充
     """
-    # 计算日期范围
     if not start or not end:
         end_date = datetime.now()
         if period == "1m":
@@ -75,49 +56,53 @@ async def get_stock_history(
         elif period == "1y":
             start_date = end_date - timedelta(days=365)
         else:  # all
-            start_date = end_date - timedelta(days=3650)  # 10年前
+            start_date = end_date - timedelta(days=3650)
 
         start = start_date.strftime("%Y-%m-%d")
         end = end_date.strftime("%Y-%m-%d")
 
-    # 先检查缓存
-    cached_data = CacheService.get_cached_history(code, start, end)
+    # 检查缓存
+    cached_data = CacheService.get_cached_history(code, start, end, frequency)
     if cached_data:
         import json
         return json.loads(cached_data)
 
     # 从数据库加载
-    db_data = DataService.load_from_database(code, start, end)
+    db_data = DataService.load_from_database(code, start, end, frequency)
 
-    # 如果数据库数据不够或为空，从API获取
+    # 如果数据库数据不够，检查是否需要增量补充
     if not db_data or len(db_data) < 5:
-        api_data = StockService.get_historical_data(code, start, end)
+        # 尝试获取全部历史数据并缓存
+        api_data = StockService.get_historical_data(code, start, end, frequency)
         if api_data:
             db_data = api_data
-            # 保存到数据库
-            DataService.save_to_database(code, db_data)
+            DataService.save_to_database(code, db_data, frequency)
+    else:
+        # 增量更新：检查数据库最新日期到 end 之间是否有缺失
+        latest_date = DataService.get_latest_date_in_db(code, frequency)
+        if latest_date:
+            latest_str = latest_date.strftime("%Y-%m-%d")
+            if latest_str < end:
+                # 从最新日期的下一天开始补充
+                next_date = (latest_date + timedelta(days=1)).strftime("%Y-%m-%d")
+                api_data = StockService.get_historical_data(code, next_date, end, frequency)
+                if api_data:
+                    DataService.save_to_database(code, api_data, frequency)
+                    # 重新加载完整数据
+                    db_data = DataService.load_from_database(code, start, end, frequency)
 
     # 缓存数据
     if db_data:
         import json
-        CacheService.set_cached_history(code, start, end, json.dumps(db_data))
+        CacheService.set_cached_history(code, start, end, frequency, json.dumps(db_data))
 
     return db_data or []
 
 
 @router.get("/info/{code}", response_model=StockInfo)
 async def get_stock_info(code: str):
-    """
-    获取股票基本信息
-
-    Args:
-        code: 股票代码
-
-    Returns:
-        股票基本信息
-    """
-    # 先从数据库获取
-    db = next(DataService.get_db())
+    """获取股票基本信息"""
+    db = next(get_db())
     try:
         from models.database import Stock
         stock = db.query(Stock).filter(Stock.code == code).first()
@@ -131,12 +116,10 @@ async def get_stock_info(code: str):
     finally:
         db.close()
 
-    # 从API获取
     api_info = StockService.get_stock_info(code)
     if not api_info:
         raise HTTPException(status_code=404, detail="Stock not found")
 
-    # 保存到数据库
     DataService.save_stock_info(code, api_info)
 
     return StockInfo(
@@ -149,43 +132,19 @@ async def get_stock_info(code: str):
 
 @router.get("/list", response_model=List[StockListItem])
 async def get_stock_list(keyword: Optional[str] = Query(None, description="搜索关键词")):
-    """
-    获取股票列表
-
-    Args:
-        keyword: 搜索关键词（股票名称或代码）
-
-    Returns:
-        股票列表
-    """
+    """获取股票列表"""
     return StockService.get_stock_list(keyword)
 
 
 @router.get("/search", response_model=List[StockListItem])
 async def search_stocks(keyword: str = Query(..., min_length=1, description="搜索关键词")):
-    """
-    搜索股票
-
-    Args:
-        keyword: 搜索关键词
-
-    Returns:
-        匹配的股票列表
-    """
+    """搜索股票"""
     return StockService.get_stock_list(keyword)
 
 
 @router.get("/batch-realtime")
 async def get_batch_realtime(codes: str = Query(..., description="股票代码，逗号分隔")):
-    """
-    批量获取实时行情
-
-    Args:
-        codes: 股票代码，逗号分隔，如: 600519,000858
-
-    Returns:
-        实时行情数据列表
-    """
+    """批量获取实时行情"""
     code_list = [c.strip() for c in codes.split(',')]
     result = []
 
