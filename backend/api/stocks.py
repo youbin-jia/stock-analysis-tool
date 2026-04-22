@@ -43,7 +43,8 @@ async def get_stock_history(
 ):
     """
     获取股票历史K线数据
-    优先从本地数据库读取，缺失部分从 baostock 增量补充
+    数据来源优先级: Redis缓存 > SQLite数据库 > baostock远程获取
+    增量更新由定时任务负责，API层优先从本地返回，仅在本地无数据时才远程获取
     """
     if not start or not end:
         end_date = datetime.now()
@@ -61,42 +62,30 @@ async def get_stock_history(
         start = start_date.strftime("%Y-%m-%d")
         end = end_date.strftime("%Y-%m-%d")
 
-    # 检查缓存
+    # 1. 检查 Redis 缓存（最快路径，毫秒级）
     cached_data = CacheService.get_cached_history(code, start, end, frequency)
     if cached_data:
         import json
         return json.loads(cached_data)
 
-    # 从数据库加载
+    # 2. 从 SQLite 数据库加载（已持久化，毫秒级）
     db_data = DataService.load_from_database(code, start, end, frequency)
 
-    # 如果数据库数据不够，检查是否需要增量补充
-    if not db_data or len(db_data) < 5:
-        # 尝试获取全部历史数据并缓存
-        api_data = StockService.get_historical_data(code, start, end, frequency)
-        if api_data:
-            db_data = api_data
-            DataService.save_to_database(code, db_data, frequency)
-    else:
-        # 增量更新：检查数据库最新日期到 end 之间是否有缺失
-        latest_date = DataService.get_latest_date_in_db(code, frequency)
-        if latest_date:
-            latest_str = latest_date.strftime("%Y-%m-%d")
-            if latest_str < end:
-                # 从最新日期的下一天开始补充
-                next_date = (latest_date + timedelta(days=1)).strftime("%Y-%m-%d")
-                api_data = StockService.get_historical_data(code, next_date, end, frequency)
-                if api_data:
-                    DataService.save_to_database(code, api_data, frequency)
-                    # 重新加载完整数据
-                    db_data = DataService.load_from_database(code, start, end, frequency)
-
-    # 缓存数据
-    if db_data:
+    if db_data and len(db_data) >= 5:
+        # 数据库有足够数据，直接返回，增量更新由定时任务负责
         import json
         CacheService.set_cached_history(code, start, end, frequency, json.dumps(db_data))
+        return db_data
 
-    return db_data or []
+    # 3. 数据库无数据，首次访问：从 baostock 拉取并持久化到 SQLite
+    api_data = StockService.get_historical_data(code, start, end, frequency)
+    if api_data:
+        DataService.save_to_database(code, api_data, frequency)
+        import json
+        CacheService.set_cached_history(code, start, end, frequency, json.dumps(api_data))
+        return api_data
+
+    return []
 
 
 @router.get("/info/{code}", response_model=StockInfo)

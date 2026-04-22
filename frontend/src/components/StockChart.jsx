@@ -8,7 +8,7 @@ function StockChart({ stockCode, stockName }) {
   const { isDark } = useTheme();
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('1y');
+  const [period, setPeriod] = useState('all');
   const [frequency, setFrequency] = useState('d');
 
   const periodOptions = [

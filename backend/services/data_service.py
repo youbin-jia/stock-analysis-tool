@@ -117,6 +117,24 @@ class DataService:
             db.close()
 
     @staticmethod
+    def get_earliest_date_in_db(stock_code: str, frequency: str = "d") -> date:
+        """
+        获取数据库中某股票的最早交易日期
+        """
+        db = next(get_db())
+        try:
+            record = db.query(StockHistory).filter(
+                StockHistory.stock_code == stock_code,
+                StockHistory.frequency == frequency,
+            ).order_by(StockHistory.trade_date.asc()).first()
+
+            if record:
+                return record.trade_date
+            return None
+        finally:
+            db.close()
+
+    @staticmethod
     def save_stock_info(stock_code: str, info: Dict[str, Any]):
         """
         保存股票基本信息到数据库

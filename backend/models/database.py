@@ -42,6 +42,24 @@ class StockHistory(Base):
     updated_at = Column(DateTime)
 
 
+class StockFundamental(Base):
+    """股票基本面数据表"""
+    __tablename__ = "stock_fundamental"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(10), index=True, nullable=False)
+    date = Column(Date, nullable=False)
+    pe_ttm = Column(Float)
+    pb = Column(Float)
+    roe = Column(Float)
+    net_profit_margin = Column(Float)
+    revenue_growth = Column(Float)
+    net_profit_growth = Column(Float)
+    debt_ratio = Column(Float)
+    dividend_yield = Column(Float)
+    score = Column(Float)
+
+
 class Fund(Base):
     """基金基本信息表"""
     __tablename__ = "funds"

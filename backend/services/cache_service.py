@@ -22,7 +22,10 @@ redis_client = redis.Redis(
 
 # 缓存过期时间（秒）
 REALTIME_CACHE_TTL = 30  # 实时数据缓存30秒
-HISTORY_CACHE_TTL = 3600  # 历史数据缓存1小时
+HISTORY_CACHE_TTL = 14400  # 历史数据缓存4小时（盘中数据变动慢）
+SECTOR_CACHE_TTL = 60  # 板块数据缓存60秒
+FUND_RANK_CACHE_TTL = 300  # 基金排行缓存5分钟
+QUANT_CACHE_TTL = 300  # 量化数据缓存5分钟
 
 
 class CacheService:
@@ -186,3 +189,61 @@ class CacheService:
             redis_client.delete("fund:low_position:scanning")
         except Exception as e:
             print(f"Redis clear scan status error: {e}")
+
+    # ========== 板块缓存方法 ==========
+
+    @staticmethod
+    def get_cached_sectors(sector_type: str) -> Optional[str]:
+        """获取缓存的板块列表"""
+        try:
+            return redis_client.get(f"sector:{sector_type}")
+        except Exception as e:
+            print(f"Redis get sectors error: {e}")
+            return None
+
+    @staticmethod
+    def set_cached_sectors(sector_type: str, data: str, ttl: int = SECTOR_CACHE_TTL):
+        """缓存板块列表"""
+        try:
+            redis_client.setex(f"sector:{sector_type}", ttl, data)
+        except Exception as e:
+            print(f"Redis set sectors error: {e}")
+
+    @staticmethod
+    def get_cached_fund_rank(fund_type: str, sort_by: str) -> Optional[str]:
+        """获取缓存的基金排行数据"""
+        try:
+            return redis_client.get(f"fund:rank:{fund_type}:{sort_by}")
+        except Exception as e:
+            print(f"Redis get fund rank error: {e}")
+            return None
+
+    @staticmethod
+    def set_cached_fund_rank(fund_type: str, sort_by: str, data: str, ttl: int = FUND_RANK_CACHE_TTL):
+        """缓存基金排行数据"""
+        try:
+            redis_client.setex(f"fund:rank:{fund_type}:{sort_by}", ttl, data)
+        except Exception as e:
+            print(f"Redis set fund rank error: {e}")
+
+    # ========== 量化分析缓存方法 ==========
+
+    @staticmethod
+    def get_cached_quant(key: str):
+        """获取缓存的量化分析数据"""
+        try:
+            data = redis_client.get(f"quant:{key}")
+            if data:
+                return json.loads(data)
+            return None
+        except Exception as e:
+            print(f"Redis get quant error: {e}")
+            return None
+
+    @staticmethod
+    def set_cached_quant(key: str, data, ttl: int = QUANT_CACHE_TTL):
+        """缓存量化分析数据"""
+        try:
+            redis_client.setex(f"quant:{key}", ttl, json.dumps(data))
+        except Exception as e:
+            print(f"Redis set quant error: {e}")

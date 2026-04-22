@@ -316,6 +316,8 @@ class StockService:
                 result.append({"code": code, "name": name})
         except Exception as e:
             print(f"baostock 获取股票列表失败，使用预置列表: {e}")
+
+        if not result:
             result = _POPULAR_STOCKS.copy()
 
         if keyword:

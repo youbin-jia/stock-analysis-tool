@@ -7,12 +7,16 @@ import {
   SunOutlined,
   MoonOutlined,
   FallOutlined,
+  FireOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import StockDetail from './pages/StockDetail';
 import ComparisonPage from './pages/ComparisonPage';
 import FundDetail from './pages/FundDetail';
 import FundComparisonPage from './pages/FundComparisonPage';
 import LowPositionFunds from './pages/LowPositionFunds';
+import HotSectors from './pages/HotSectors';
+import QuantAnalysis from './pages/QuantAnalysis';
 import StockSearch from './components/StockSearch';
 import FundSearch from './components/FundSearch';
 import { useTheme } from './context/ThemeContext';
@@ -25,7 +29,7 @@ function App() {
   const { isDark, toggleTheme } = useTheme();
   const pathSegments = location.pathname.split('/').filter(Boolean);
 
-  const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds';
+  const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds' || pathSegments[0] === 'hot-sectors' || pathSegments[0] === 'quant-analysis';
 
   const menuItems = [
     {
@@ -39,6 +43,18 @@ function App() {
       icon: <BarChartOutlined />,
       label: '股票对比',
       onClick: () => navigate('/comparison'),
+    },
+    {
+      key: 'hot-sectors',
+      icon: <FireOutlined />,
+      label: '热门板块',
+      onClick: () => navigate('/hot-sectors'),
+    },
+    {
+      key: 'quant-analysis',
+      icon: <ExperimentOutlined />,
+      label: '量化分析',
+      onClick: () => navigate('/quant-analysis'),
     },
     {
       key: 'fund',
@@ -63,6 +79,8 @@ function App() {
   const getSelectedKey = () => {
     if (pathSegments[0] === 'detail') return 'detail';
     if (pathSegments[0] === 'comparison') return 'comparison';
+    if (pathSegments[0] === 'hot-sectors') return 'hot-sectors';
+    if (pathSegments[0] === 'quant-analysis') return 'quant-analysis';
     if (pathSegments[0] === 'fund') return 'fund';
     if (pathSegments[0] === 'fund-comparison') return 'fund-comparison';
     if (pathSegments[0] === 'low-position-funds') return 'low-position';
@@ -74,6 +92,8 @@ function App() {
     const key = getSelectedKey();
     if (key === 'detail') items.push({ title: '股票详情' });
     else if (key === 'comparison') items.push({ title: '股票对比' });
+    else if (key === 'hot-sectors') items.push({ title: '热门板块' });
+    else if (key === 'quant-analysis') items.push({ title: '量化分析' });
     else if (key === 'fund') items.push({ title: '基金详情' });
     else if (key === 'fund-comparison') items.push({ title: '基金对比' });
     else if (key === 'low-position') items.push({ title: '低位基金' });
@@ -161,6 +181,8 @@ function App() {
               <Route path="/" element={<Navigate to="/detail/600519" replace />} />
               <Route path="/detail/:code" element={<StockDetail />} />
               <Route path="/comparison" element={<ComparisonPage />} />
+              <Route path="/hot-sectors" element={<HotSectors />} />
+              <Route path="/quant-analysis" element={<QuantAnalysis />} />
               <Route path="/fund/:code" element={<FundDetail />} />
               <Route path="/fund-comparison" element={<FundComparisonPage />} />
               <Route path="/low-position-funds" element={<LowPositionFunds />} />

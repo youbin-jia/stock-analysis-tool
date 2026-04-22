@@ -81,8 +81,8 @@ async def update_daily_data():
                                 updated_count += 1
                                 print(f"  更新 {code} {freq_name}: {len(data)} 条")
                     else:
-                        # 首次下载：拉取近一年数据
-                        start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+                        # 首次下载：拉取近10年数据（覆盖 period=all 的需求）
+                        start_date = (datetime.now() - timedelta(days=3650)).strftime("%Y-%m-%d")
                         data = StockService.get_historical_data(code, start_date, today, freq)
                         if data:
                             DataService.save_to_database(code, data, freq)
