@@ -42,5 +42,6 @@ Thumbs.db
 # Claude Code
 .claude/
 
-# App data
-backend/data/
+# App data (allow .py source files, ignore db/cache)
+backend/data/*
+!backend/data/*.py

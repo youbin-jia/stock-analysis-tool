@@ -9,6 +9,9 @@ import {
   FallOutlined,
   FireOutlined,
   ExperimentOutlined,
+  TrophyOutlined,
+  GlobalOutlined,
+  ReadOutlined,
 } from '@ant-design/icons';
 import StockDetail from './pages/StockDetail';
 import ComparisonPage from './pages/ComparisonPage';
@@ -17,6 +20,11 @@ import FundComparisonPage from './pages/FundComparisonPage';
 import LowPositionFunds from './pages/LowPositionFunds';
 import HotSectors from './pages/HotSectors';
 import QuantAnalysis from './pages/QuantAnalysis';
+import StyleInsight from './pages/StyleInsight';
+import StyleTops from './pages/StyleTops';
+import PolicyInsight from './pages/PolicyInsight';
+import BooksLibrary from './pages/BooksLibrary';
+import BookDetail from './pages/BookDetail';
 import StockSearch from './components/StockSearch';
 import FundSearch from './components/FundSearch';
 import { useTheme } from './context/ThemeContext';
@@ -29,7 +37,7 @@ function App() {
   const { isDark, toggleTheme } = useTheme();
   const pathSegments = location.pathname.split('/').filter(Boolean);
 
-  const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds' || pathSegments[0] === 'hot-sectors' || pathSegments[0] === 'quant-analysis';
+  const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds' || pathSegments[0] === 'hot-sectors' || pathSegments[0] === 'quant-analysis' || pathSegments[0] === 'style-insight' || pathSegments[0] === 'style-tops' || pathSegments[0] === 'policy' || pathSegments[0] === 'books';
 
   const menuItems = [
     {
@@ -57,6 +65,24 @@ function App() {
       onClick: () => navigate('/quant-analysis'),
     },
     {
+      key: 'style-insight',
+      icon: <TrophyOutlined />,
+      label: '流派洞察',
+      onClick: () => navigate('/style-insight'),
+    },
+    {
+      key: 'style-tops',
+      icon: <TrophyOutlined />,
+      label: '流派Top榜',
+      onClick: () => navigate('/style-tops'),
+    },
+    {
+      key: 'policy',
+      icon: <GlobalOutlined />,
+      label: '政策风向',
+      onClick: () => navigate('/policy'),
+    },
+    {
       key: 'fund',
       icon: <BankOutlined />,
       label: '基金详情',
@@ -74,6 +100,12 @@ function App() {
       label: '低位基金',
       onClick: () => navigate('/low-position-funds'),
     },
+    {
+      key: 'books',
+      icon: <ReadOutlined />,
+      label: '投资智慧',
+      onClick: () => navigate('/books'),
+    },
   ];
 
   const getSelectedKey = () => {
@@ -81,9 +113,13 @@ function App() {
     if (pathSegments[0] === 'comparison') return 'comparison';
     if (pathSegments[0] === 'hot-sectors') return 'hot-sectors';
     if (pathSegments[0] === 'quant-analysis') return 'quant-analysis';
+    if (pathSegments[0] === 'style-insight') return 'style-insight';
+    if (pathSegments[0] === 'style-tops') return 'style-tops';
+    if (pathSegments[0] === 'policy') return 'policy';
     if (pathSegments[0] === 'fund') return 'fund';
     if (pathSegments[0] === 'fund-comparison') return 'fund-comparison';
     if (pathSegments[0] === 'low-position-funds') return 'low-position';
+    if (pathSegments[0] === 'books') return 'books';
     return 'detail';
   };
 
@@ -94,9 +130,13 @@ function App() {
     else if (key === 'comparison') items.push({ title: '股票对比' });
     else if (key === 'hot-sectors') items.push({ title: '热门板块' });
     else if (key === 'quant-analysis') items.push({ title: '量化分析' });
+    else if (key === 'style-insight') items.push({ title: '流派洞察' });
+    else if (key === 'style-tops') items.push({ title: '流派Top榜' });
+    else if (key === 'policy') items.push({ title: '政策风向' });
     else if (key === 'fund') items.push({ title: '基金详情' });
     else if (key === 'fund-comparison') items.push({ title: '基金对比' });
     else if (key === 'low-position') items.push({ title: '低位基金' });
+    else if (key === 'books') items.push({ title: '投资智慧' });
     return items;
   };
 
@@ -183,9 +223,14 @@ function App() {
               <Route path="/comparison" element={<ComparisonPage />} />
               <Route path="/hot-sectors" element={<HotSectors />} />
               <Route path="/quant-analysis" element={<QuantAnalysis />} />
+              <Route path="/style-insight" element={<StyleInsight />} />
+              <Route path="/style-tops" element={<StyleTops />} />
+              <Route path="/policy" element={<PolicyInsight />} />
               <Route path="/fund/:code" element={<FundDetail />} />
               <Route path="/fund-comparison" element={<FundComparisonPage />} />
               <Route path="/low-position-funds" element={<LowPositionFunds />} />
+              <Route path="/books" element={<BooksLibrary />} />
+              <Route path="/books/:id" element={<BookDetail />} />
             </Routes>
           </Content>
         </Layout>

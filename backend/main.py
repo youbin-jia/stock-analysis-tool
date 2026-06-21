@@ -6,6 +6,8 @@ from api.funds import router as funds_router
 from api.comparison import router as comparison_router
 from api.sectors import router as sectors_router
 from api.quant import router as quant_router
+from api.books import router as books_router
+from api.policy import router as policy_router
 from tasks.scheduler import init_database_and_cache, start_scheduler, stop_scheduler
 
 
@@ -44,6 +46,8 @@ app.include_router(funds_router)
 app.include_router(comparison_router)
 app.include_router(sectors_router)
 app.include_router(quant_router)
+app.include_router(books_router)
+app.include_router(policy_router)
 
 
 @app.get("/")

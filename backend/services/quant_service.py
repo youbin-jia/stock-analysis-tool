@@ -340,50 +340,50 @@ class QuantService:
             debt_ratio = 0
             dividend_yield = 0
 
-            # 盈利数据
+            # 盈利数据 字段: code, pubDate, statDate, roeAvg, npMargin, gpMargin, netProfit, ...
             try:
                 rs = bs.query_profit_data(code=bs_code, year=recent_year, quarter=recent_quarter)
                 while rs.error_code == "0" and rs.next():
                     row = rs.get_row_data()
-                    if len(row) > 6:
+                    if len(row) > 3:
                         try:
-                            roe = float(row[6]) if row[6] else 0
+                            roe = float(row[3]) if row[3] else 0
                         except:
                             pass
-                    if len(row) > 5:
+                    if len(row) > 4:
                         try:
-                            net_profit_margin = float(row[5]) if row[5] else 0
+                            net_profit_margin = float(row[4]) if row[4] else 0
                         except:
                             pass
             except:
                 pass
 
-            # 成长数据
+            # 成长数据 字段: code, pubDate, statDate, YOYEquity, YOYAsset, YOYNI, YOYEPSBasic, YOYPNI
             try:
                 rs = bs.query_growth_data(code=bs_code, year=recent_year, quarter=recent_quarter)
                 while rs.error_code == "0" and rs.next():
                     row = rs.get_row_data()
-                    if len(row) > 3:
+                    if len(row) > 4:
                         try:
-                            revenue_growth = float(row[3]) if row[3] else 0
+                            revenue_growth = float(row[4]) if row[4] else 0  # YOYAsset 近似
                         except:
                             pass
                     if len(row) > 5:
                         try:
-                            net_profit_growth = float(row[5]) if row[5] else 0
+                            net_profit_growth = float(row[5]) if row[5] else 0  # YOYNI
                         except:
                             pass
             except:
                 pass
 
-            # 偿债数据
+            # 偿债数据 字段: code, pubDate, statDate, currentRatio, quickRatio, cashRatio, YOYLiability, liabilityToAsset, assetToEquity
             try:
                 rs = bs.query_balance_data(code=bs_code, year=recent_year, quarter=recent_quarter)
                 while rs.error_code == "0" and rs.next():
                     row = rs.get_row_data()
-                    if len(row) > 2:
+                    if len(row) > 7:
                         try:
-                            debt_ratio = float(row[2]) if row[2] else 0
+                            debt_ratio = float(row[7]) if row[7] else 0  # liabilityToAsset
                         except:
                             pass
             except:
