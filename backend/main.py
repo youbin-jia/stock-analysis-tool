@@ -8,6 +8,10 @@ from api.sectors import router as sectors_router
 from api.quant import router as quant_router
 from api.books import router as books_router
 from api.policy import router as policy_router
+from api.earnings import router as earnings_router
+from api.valuation import router as valuation_router
+from api.calendar import router as calendar_router
+from api.thesis import router as thesis_router
 from tasks.scheduler import init_database_and_cache, start_scheduler, stop_scheduler
 
 
@@ -48,6 +52,10 @@ app.include_router(sectors_router)
 app.include_router(quant_router)
 app.include_router(books_router)
 app.include_router(policy_router)
+app.include_router(earnings_router)
+app.include_router(valuation_router)
+app.include_router(calendar_router)
+app.include_router(thesis_router)
 
 
 @app.get("/")

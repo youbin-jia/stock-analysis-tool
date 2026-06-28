@@ -12,6 +12,10 @@ import {
   TrophyOutlined,
   GlobalOutlined,
   ReadOutlined,
+  AuditOutlined,
+  CalculatorOutlined,
+  CalendarOutlined,
+  ProfileOutlined,
 } from '@ant-design/icons';
 import StockDetail from './pages/StockDetail';
 import ComparisonPage from './pages/ComparisonPage';
@@ -25,6 +29,10 @@ import StyleTops from './pages/StyleTops';
 import PolicyInsight from './pages/PolicyInsight';
 import BooksLibrary from './pages/BooksLibrary';
 import BookDetail from './pages/BookDetail';
+import EarningsSnapshot from './pages/EarningsSnapshot';
+import ValuationPage from './pages/ValuationPage';
+import CatalystCalendar from './pages/CatalystCalendar';
+import ThesisTracker from './pages/ThesisTracker';
 import StockSearch from './components/StockSearch';
 import FundSearch from './components/FundSearch';
 import { useTheme } from './context/ThemeContext';
@@ -37,7 +45,7 @@ function App() {
   const { isDark, toggleTheme } = useTheme();
   const pathSegments = location.pathname.split('/').filter(Boolean);
 
-  const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds' || pathSegments[0] === 'hot-sectors' || pathSegments[0] === 'quant-analysis' || pathSegments[0] === 'style-insight' || pathSegments[0] === 'style-tops' || pathSegments[0] === 'policy' || pathSegments[0] === 'books';
+  const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds' || pathSegments[0] === 'hot-sectors' || pathSegments[0] === 'quant-analysis' || pathSegments[0] === 'style-insight' || pathSegments[0] === 'style-tops' || pathSegments[0] === 'policy' || pathSegments[0] === 'books' || pathSegments[0] === 'calendar' || pathSegments[0] === 'thesis';
 
   const menuItems = [
     {
@@ -51,6 +59,30 @@ function App() {
       icon: <BarChartOutlined />,
       label: '股票对比',
       onClick: () => navigate('/comparison'),
+    },
+    {
+      key: 'earnings',
+      icon: <AuditOutlined />,
+      label: '财报快评',
+      onClick: () => navigate('/earnings/600519'),
+    },
+    {
+      key: 'valuation',
+      icon: <CalculatorOutlined />,
+      label: '估值实验室',
+      onClick: () => navigate('/valuation'),
+    },
+    {
+      key: 'calendar',
+      icon: <CalendarOutlined />,
+      label: '催化剂日历',
+      onClick: () => navigate('/calendar'),
+    },
+    {
+      key: 'thesis',
+      icon: <ProfileOutlined />,
+      label: '投资观点',
+      onClick: () => navigate('/thesis'),
     },
     {
       key: 'hot-sectors',
@@ -111,6 +143,10 @@ function App() {
   const getSelectedKey = () => {
     if (pathSegments[0] === 'detail') return 'detail';
     if (pathSegments[0] === 'comparison') return 'comparison';
+    if (pathSegments[0] === 'earnings') return 'earnings';
+    if (pathSegments[0] === 'valuation') return 'valuation';
+    if (pathSegments[0] === 'calendar') return 'calendar';
+    if (pathSegments[0] === 'thesis') return 'thesis';
     if (pathSegments[0] === 'hot-sectors') return 'hot-sectors';
     if (pathSegments[0] === 'quant-analysis') return 'quant-analysis';
     if (pathSegments[0] === 'style-insight') return 'style-insight';
@@ -128,6 +164,10 @@ function App() {
     const key = getSelectedKey();
     if (key === 'detail') items.push({ title: '股票详情' });
     else if (key === 'comparison') items.push({ title: '股票对比' });
+    else if (key === 'earnings') items.push({ title: '财报快评' });
+    else if (key === 'valuation') items.push({ title: '估值实验室' });
+    else if (key === 'calendar') items.push({ title: '催化剂日历' });
+    else if (key === 'thesis') items.push({ title: '投资观点' });
     else if (key === 'hot-sectors') items.push({ title: '热门板块' });
     else if (key === 'quant-analysis') items.push({ title: '量化分析' });
     else if (key === 'style-insight') items.push({ title: '流派洞察' });
@@ -221,6 +261,11 @@ function App() {
               <Route path="/" element={<Navigate to="/detail/600519" replace />} />
               <Route path="/detail/:code" element={<StockDetail />} />
               <Route path="/comparison" element={<ComparisonPage />} />
+              <Route path="/earnings/:code" element={<EarningsSnapshot />} />
+              <Route path="/earnings" element={<EarningsSnapshot />} />
+              <Route path="/valuation" element={<ValuationPage />} />
+              <Route path="/calendar" element={<CatalystCalendar />} />
+              <Route path="/thesis" element={<ThesisTracker />} />
               <Route path="/hot-sectors" element={<HotSectors />} />
               <Route path="/quant-analysis" element={<QuantAnalysis />} />
               <Route path="/style-insight" element={<StyleInsight />} />

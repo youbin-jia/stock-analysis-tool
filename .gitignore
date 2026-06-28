@@ -40,7 +40,8 @@ Thumbs.db
 .env.local
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/skills/
 
 # App data (allow .py source files, ignore db/cache)
 backend/data/*
