@@ -12,6 +12,7 @@ from api.earnings import router as earnings_router
 from api.valuation import router as valuation_router
 from api.calendar import router as calendar_router
 from api.thesis import router as thesis_router
+from api.industry_report import router as industry_report_router
 from tasks.scheduler import init_database_and_cache, start_scheduler, stop_scheduler
 
 
@@ -56,6 +57,7 @@ app.include_router(earnings_router)
 app.include_router(valuation_router)
 app.include_router(calendar_router)
 app.include_router(thesis_router)
+app.include_router(industry_report_router)
 
 
 @app.get("/")

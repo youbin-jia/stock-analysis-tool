@@ -16,6 +16,7 @@ import {
   CalculatorOutlined,
   CalendarOutlined,
   ProfileOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import StockDetail from './pages/StockDetail';
 import ComparisonPage from './pages/ComparisonPage';
@@ -33,6 +34,7 @@ import EarningsSnapshot from './pages/EarningsSnapshot';
 import ValuationPage from './pages/ValuationPage';
 import CatalystCalendar from './pages/CatalystCalendar';
 import ThesisTracker from './pages/ThesisTracker';
+import IndustryReport from './pages/IndustryReport';
 import StockSearch from './components/StockSearch';
 import FundSearch from './components/FundSearch';
 import { useTheme } from './context/ThemeContext';
@@ -45,7 +47,7 @@ function App() {
   const { isDark, toggleTheme } = useTheme();
   const pathSegments = location.pathname.split('/').filter(Boolean);
 
-  const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds' || pathSegments[0] === 'hot-sectors' || pathSegments[0] === 'quant-analysis' || pathSegments[0] === 'style-insight' || pathSegments[0] === 'style-tops' || pathSegments[0] === 'policy' || pathSegments[0] === 'books' || pathSegments[0] === 'calendar' || pathSegments[0] === 'thesis';
+  const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds' || pathSegments[0] === 'hot-sectors' || pathSegments[0] === 'quant-analysis' || pathSegments[0] === 'style-insight' || pathSegments[0] === 'style-tops' || pathSegments[0] === 'policy' || pathSegments[0] === 'books' || pathSegments[0] === 'calendar' || pathSegments[0] === 'thesis' || pathSegments[0] === 'industry-report';
 
   const menuItems = [
     {
@@ -83,6 +85,12 @@ function App() {
       icon: <ProfileOutlined />,
       label: '投资观点',
       onClick: () => navigate('/thesis'),
+    },
+    {
+      key: 'industry-report',
+      icon: <ThunderboltOutlined />,
+      label: '行业报告',
+      onClick: () => navigate('/industry-report'),
     },
     {
       key: 'hot-sectors',
@@ -147,6 +155,7 @@ function App() {
     if (pathSegments[0] === 'valuation') return 'valuation';
     if (pathSegments[0] === 'calendar') return 'calendar';
     if (pathSegments[0] === 'thesis') return 'thesis';
+    if (pathSegments[0] === 'industry-report') return 'industry-report';
     if (pathSegments[0] === 'hot-sectors') return 'hot-sectors';
     if (pathSegments[0] === 'quant-analysis') return 'quant-analysis';
     if (pathSegments[0] === 'style-insight') return 'style-insight';
@@ -168,6 +177,7 @@ function App() {
     else if (key === 'valuation') items.push({ title: '估值实验室' });
     else if (key === 'calendar') items.push({ title: '催化剂日历' });
     else if (key === 'thesis') items.push({ title: '投资观点' });
+    else if (key === 'industry-report') items.push({ title: '行业报告' });
     else if (key === 'hot-sectors') items.push({ title: '热门板块' });
     else if (key === 'quant-analysis') items.push({ title: '量化分析' });
     else if (key === 'style-insight') items.push({ title: '流派洞察' });
@@ -266,6 +276,7 @@ function App() {
               <Route path="/valuation" element={<ValuationPage />} />
               <Route path="/calendar" element={<CatalystCalendar />} />
               <Route path="/thesis" element={<ThesisTracker />} />
+              <Route path="/industry-report" element={<IndustryReport />} />
               <Route path="/hot-sectors" element={<HotSectors />} />
               <Route path="/quant-analysis" element={<QuantAnalysis />} />
               <Route path="/style-insight" element={<StyleInsight />} />
