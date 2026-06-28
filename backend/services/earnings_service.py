@@ -46,11 +46,11 @@ def fetch_financial_summary(stock_code: str, limit: int = 8) -> List[Dict[str, A
     url = (
         "https://datacenter.eastmoney.com/securities/api/data/v1/get"
         "?reportName=RPT_LICO_FN_CPD"
-        f"&columns=SECURITY_CODE,SECURITY_NAME_ABBR,REPORT_DATE,"
+        f"&columns=SECURITY_CODE,SECURITY_NAME_ABBR,REPORTDATE,"
         "BASIC_EPS,DEDUCT_BASIC_EPS,TOTAL_OPERATE_INCOME,"
         "PARENT_NETPROFIT,WEIGHTAVG_ROE,YSTZ,YSHZ,SJLTZ,SJLHZ"
         f"&filter=(SECURITY_CODE%3D%22{stock_code}%22)"
-        f"&pageSize={limit}&pageNumber=1&sortColumns=REPORT_DATE&sortTypes=-1"
+        f"&pageSize={limit}&pageNumber=1&sortColumns=NOTICE_DATE&sortTypes=-1"
         "&source=WEB&client=WEB"
     )
     try:
@@ -60,7 +60,7 @@ def fetch_financial_summary(stock_code: str, limit: int = 8) -> List[Dict[str, A
         result = []
         for r in rows:
             result.append({
-                "report_date": r.get("REPORT_DATE", "")[:10],
+                "report_date": (r.get("REPORTDATE") or "")[:10],
                 "eps": _safe_float(r.get("BASIC_EPS")),
                 "eps_deducted": _safe_float(r.get("DEDUCT_BASIC_EPS")),
                 "revenue": _safe_float(r.get("TOTAL_OPERATE_INCOME")),

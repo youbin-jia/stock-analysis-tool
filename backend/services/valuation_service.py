@@ -134,30 +134,41 @@ def _median(nums: List[float]) -> Optional[float]:
     return nums[n // 2] if n % 2 else (nums[n // 2 - 1] + nums[n // 2]) / 2
 
 
+def _fetch_board_code(stock_code: str) -> Optional[Dict[str, str]]:
+    """从东方财富个股财务摘要表里拿 BOARD_NAME / BOARD_CODE"""
+    url = (
+        "https://datacenter.eastmoney.com/securities/api/data/v1/get"
+        "?reportName=RPT_LICO_FN_CPD&columns=SECURITY_CODE,BOARD_NAME,BOARD_CODE"
+        f"&filter=(SECURITY_CODE%3D%22{stock_code}%22)"
+        "&pageSize=1&pageNumber=1&sortColumns=NOTICE_DATE&sortTypes=-1"
+        "&source=WEB&client=WEB"
+    )
+    try:
+        r = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        rows = ((r.json() or {}).get("result") or {}).get("data") or []
+        if not rows:
+            return None
+        return {"industry": rows[0].get("BOARD_NAME"), "board_code": rows[0].get("BOARD_CODE")}
+    except Exception as e:
+        print(f"[comps] _fetch_board_code error: {e}")
+        return None
+
+
 def fetch_industry_peers(stock_code: str) -> Dict[str, Any]:
     """通过东方财富取目标公司所属行业的同行可比表（PE/PB/PS/ROE 等）"""
-    # 先取该股所属行业板块代码
     try:
-        # 个股资料
-        secid = ("1." if stock_code.startswith(("6", "9")) else "0.") + stock_code
-        info_url = (
-            "https://push2.eastmoney.com/api/qt/stock/get"
-            f"?secid={secid}&fields=f57,f58,f127"   # f57=code, f58=name, f127=行业
-        )
-        resp = requests.get(info_url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
-        info = resp.json().get("data") or {}
-        industry = info.get("f127")
-        if not industry:
-            return {"available": False, "message": "无法识别所属行业"}
+        meta = _fetch_board_code(stock_code)
+        if not meta or not meta.get("board_code"):
+            return {"available": False, "message": "无法识别所属行业板块"}
+        industry = meta["industry"]
+        board_code = meta["board_code"]
 
-        # 拉同行业全部成分股的实时排名（含 PE/PB 等）
-        # 东方财富板块筛选接口：f3=涨跌幅 f9=PE动 f23=市净率 f37=ROE f114=PS
+        # 用板块代码筛同行业（fs=b:BKxxxx）
         peers_url = (
             "https://push2.eastmoney.com/api/qt/clist/get"
             "?pn=1&pz=500&po=1&np=1&fltt=2&invt=2"
-            f"&fs=b:BK{''}"   # 占位；下方用 forName 兜底
-            "&fields=f12,f14,f2,f3,f9,f23,f37,f114,f100"
-            f"&forName={industry}"
+            f"&fs=b:{board_code}"
+            "&fields=f12,f14,f2,f3,f9,f23,f37,f114"
         )
         resp2 = requests.get(peers_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         diff = ((resp2.json() or {}).get("data") or {}).get("diff") or []

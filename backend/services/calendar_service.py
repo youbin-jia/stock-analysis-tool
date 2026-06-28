@@ -20,16 +20,21 @@ def _safe(v):
     return v
 
 
-def _get_em(report_name: str, columns: str, filters: str, page_size: int = 100) -> List[Dict]:
+def _get_em(report_name: str, columns: str, filters: str,
+            sort_col: str = "NOTICE_DATE", page_size: int = 100) -> List[Dict]:
     url = (
         "https://datacenter-web.eastmoney.com/api/data/v1/get"
         f"?reportName={report_name}&columns={columns}"
         f"&filter={filters}&pageSize={page_size}&pageNumber=1"
-        "&sortColumns=NOTICE_DATE&sortTypes=-1"
+        f"&sortColumns={sort_col}&sortTypes=1"
         "&source=WEB&client=WEB"
     )
     try:
-        resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        resp = requests.get(
+            url, timeout=10,
+            headers={"User-Agent": "Mozilla/5.0",
+                     "Referer": "https://data.eastmoney.com/"},
+        )
         return ((resp.json() or {}).get("result") or {}).get("data") or []
     except Exception as e:
         print(f"[calendar] {report_name} error: {e}")
@@ -44,9 +49,10 @@ def earnings_calendar(days_ahead: int = 30, code: Optional[str] = None) -> List[
     if code:
         filters += f"(SECURITY_CODE%3D%22{code}%22)"
     rows = _get_em(
-        "RPT_PUBLIC_OP_PREDICT",
-        "SECURITY_CODE,SECURITY_NAME_ABBR,APPOINT_PUBLISH_DATE,REPORT_DATE",
+        "RPT_PUBLIC_BS_APPOIN",
+        "SECURITY_CODE,SECURITY_NAME_ABBR,APPOINT_PUBLISH_DATE,REPORT_DATE,REPORT_TYPE_NAME",
         filters,
+        sort_col="APPOINT_PUBLISH_DATE",
     )
     return [
         {
@@ -54,7 +60,7 @@ def earnings_calendar(days_ahead: int = 30, code: Optional[str] = None) -> List[
             "date": (r.get("APPOINT_PUBLISH_DATE") or "")[:10],
             "code": r.get("SECURITY_CODE"),
             "name": r.get("SECURITY_NAME_ABBR"),
-            "title": f"{r.get('REPORT_DATE', '')[:10]} 财报披露",
+            "title": f"{r.get('REPORT_TYPE_NAME') or (r.get('REPORT_DATE','')[:10] + ' 报告')} 披露",
         }
         for r in rows
     ]
@@ -71,6 +77,7 @@ def dividend_calendar(days_ahead: int = 60, code: Optional[str] = None) -> List[
         "RPT_SHAREBONUS_DET",
         "SECURITY_CODE,SECURITY_NAME_ABBR,EX_DIVIDEND_DATE,PLAN_EXPLAIN",
         filters,
+        sort_col="EX_DIVIDEND_DATE",
     )
     return [
         {
@@ -85,37 +92,8 @@ def dividend_calendar(days_ahead: int = 60, code: Optional[str] = None) -> List[
 
 
 def unlock_calendar(days_ahead: int = 60, code: Optional[str] = None) -> List[Dict[str, Any]]:
-    """限售解禁日历"""
-    today = datetime.now().strftime("%Y-%m-%d")
-    end = (datetime.now() + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
-    filters = f"(LIFT_DATE%3E%3D%27{today}%27)(LIFT_DATE%3C%3D%27{end}%27)"
-    if code:
-        filters += f"(SECURITY_CODE%3D%22{code}%22)"
-    rows = _get_em(
-        "RPT_LIFTSHARES_LIST",
-        "SECURITY_CODE,SECURITY_NAME_ABBR,LIFT_DATE,LIFT_NUM,LIFT_AMOUNT_BCY,LIFT_NUM_RATIO",
-        filters,
-    )
-    out = []
-    for r in rows:
-        ratio = r.get("LIFT_NUM_RATIO")
-        amount = r.get("LIFT_AMOUNT_BCY")
-        try:
-            amount_str = f"{float(amount)/1e8:.2f}亿" if amount else "—"
-        except (TypeError, ValueError):
-            amount_str = "—"
-        try:
-            ratio_str = f"{float(ratio):.2f}%" if ratio else "—"
-        except (TypeError, ValueError):
-            ratio_str = "—"
-        out.append({
-            "type": "unlock",
-            "date": (r.get("LIFT_DATE") or "")[:10],
-            "code": r.get("SECURITY_CODE"),
-            "name": r.get("SECURITY_NAME_ABBR"),
-            "title": f"限售解禁 {amount_str}（占流通 {ratio_str}）",
-        })
-    return out
+    """限售解禁日历（暂不可用：东方财富 reportName 未定位）"""
+    return []
 
 
 def upcoming_calendar(days_ahead: int = 30) -> Dict[str, Any]:
