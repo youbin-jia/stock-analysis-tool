@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import App from './App';
@@ -13,7 +13,7 @@ function ThemedApp() {
     <ConfigProvider
       locale={zhCN}
       theme={{
-        algorithm: isDark ? undefined : undefined,
+        algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
           colorBgBase: isDark ? '#141414' : '#ffffff',
           colorTextBase: isDark ? '#e8e8e8' : '#1f1f1f',
