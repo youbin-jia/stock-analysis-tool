@@ -178,21 +178,40 @@ class StockService:
     _bs_session = None
 
     @classmethod
-    def _ensure_bs_login(cls):
-        """确保 baostock 已登录"""
-        if cls._bs_session is None:
+    def _ensure_bs_login(cls, force: bool = False):
+        """确保 baostock 已登录，force=True 时强制重新登录"""
+        if cls._bs_session is None or force:
             cls._bs_session = bs.login()
         return cls._bs_session.error_code == "0"
 
     @staticmethod
+    def _market_prefix(stock_code: str) -> str:
+        """
+        判断证券所属市场，覆盖股票 / ETF / LOF / 指数 / 北交所
+        沪市: 6xxxxx(股票) 5xxxxx(ETF/LOF) 900xxx(B股)
+        深市: 0xxxxx 3xxxxx(股票) 1xxxxx(ETF/LOF) 399xxx(指数)
+        北交所: 4xxxxx 8xxxxx 92xxxx（东方财富按深市 secid 前缀 0 处理）
+        """
+        if stock_code.startswith(("4", "8", "92")):
+            return "bj"
+        if stock_code.startswith(("6", "5", "9")):
+            return "sh"
+        return "sz"
+
+    @staticmethod
     def _to_tencent_symbol(stock_code: str) -> str:
-        """转换为腾讯接口格式: sh600519 / sz000858"""
-        return ("sh" if stock_code.startswith("6") else "sz") + stock_code
+        """转换为腾讯接口格式: sh600519 / sz000858 / sh510300"""
+        return StockService._market_prefix(stock_code) + stock_code
 
     @staticmethod
     def _to_baostock_symbol(stock_code: str) -> str:
         """转换为 baostock 格式: sh.600519 / sz.000858"""
-        return ("sh." if stock_code.startswith("6") else "sz.") + stock_code
+        return StockService._market_prefix(stock_code) + "." + stock_code
+
+    @staticmethod
+    def _to_eastmoney_secid(stock_code: str) -> str:
+        """转换为东方财富 secid: 1.600519(沪) / 0.000858(深) / 0.430047(北)"""
+        return ("1." if StockService._market_prefix(stock_code) == "sh" else "0.") + stock_code
 
     @staticmethod
     def get_realtime_data(stock_code: str) -> Optional[Dict[str, Any]]:
@@ -233,20 +252,79 @@ class StockService:
             return None
 
     @staticmethod
-    def get_historical_data(
-        stock_code: str,
-        start_date: str,
-        end_date: str,
-        frequency: str = "d",
-    ) -> Optional[List[Dict]]:
+    def _eastmoney_get(url_path: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        获取历史K线数据（baostock 接口）
-        frequency: d=日线, w=周线, m=月线
+        请求东方财富接口，http/https 各试一次
+        （部分网络环境下对 eastmoney 的 https 连接会被重置）
         """
-        try:
-            StockService._ensure_bs_login()
-            symbol = StockService._to_baostock_symbol(stock_code)
+        last_error = None
+        for scheme in ("http", "https"):
+            try:
+                resp = requests.get(
+                    f"{scheme}://{url_path}",
+                    params=params,
+                    headers={
+                        "User-Agent": "Mozilla/5.0",
+                        "Referer": "https://quote.eastmoney.com/",
+                    },
+                    timeout=15,
+                )
+                return resp.json() or {}
+            except Exception as e:
+                last_error = e
+        raise last_error
 
+    @staticmethod
+    def _eastmoney_kline(
+        stock_code: str, start_date: str, end_date: str, frequency: str
+    ) -> List[Dict]:
+        """
+        东方财富历史K线，覆盖 A股 / ETF / LOF / 指数，支持日线周线月线
+        klt: 101=日线, 102=周线, 103=月线；fqt=1 前复权
+        """
+        klt = {"d": 101, "w": 102, "m": 103}.get(frequency, 101)
+        payload = StockService._eastmoney_get(
+            "push2his.eastmoney.com/api/qt/stock/kline/get",
+            {
+                "secid": StockService._to_eastmoney_secid(stock_code),
+                "fields1": "f1,f2,f3,f4,f5,f6",
+                "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+                "klt": klt,
+                "fqt": 1,
+                "beg": start_date.replace("-", ""),
+                "end": end_date.replace("-", ""),
+            },
+        )
+        klines = (payload.get("data") or {}).get("klines") or []
+
+        result = []
+        for line in klines:
+            # 日期,开盘,收盘,最高,最低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率
+            f = line.split(",")
+            if len(f) < 10:
+                continue
+            result.append(
+                {
+                    "date": f[0],
+                    "open": float(f[1]),
+                    "close": float(f[2]),
+                    "high": float(f[3]),
+                    "low": float(f[4]),
+                    "volume": int(float(f[5])),
+                    "amount": float(f[6]),
+                    "change_percent": float(f[8]),
+                }
+            )
+        return result
+
+    @staticmethod
+    def _baostock_kline(
+        stock_code: str, start_date: str, end_date: str, frequency: str
+    ) -> List[Dict]:
+        """baostock 历史K线（仅 A 股），作为东方财富的备用源"""
+        symbol = StockService._to_baostock_symbol(stock_code)
+
+        def _query():
             rs = bs.query_history_k_data_plus(
                 symbol,
                 "date,open,high,low,close,volume,amount,pctChg",
@@ -255,24 +333,58 @@ class StockService:
                 frequency=frequency,
                 adjustflag="2",  # 前复权（与主流平台保持一致）
             )
-
-            data_list = []
+            rows = []
             while (rs.error_code == "0") and rs.next():
-                row = rs.get_row_data()
-                data_list.append(
-                    {
-                        "date": row[0],
-                        "open": float(row[1]) if row[1] else 0.0,
-                        "high": float(row[2]) if row[2] else 0.0,
-                        "low": float(row[3]) if row[3] else 0.0,
-                        "close": float(row[4]) if row[4] else 0.0,
-                        "volume": int(float(row[5])) if row[5] else 0,
-                        "amount": float(row[6]) if row[6] else 0.0,
-                        "change_percent": float(row[7]) if row[7] else 0.0,
-                    }
-                )
+                rows.append(rs.get_row_data())
+            return rs.error_code, rows
 
-            return data_list
+        StockService._ensure_bs_login()
+        error_code, rows = _query()
+
+        # 长驻进程的 baostock 会话可能失效，重连后重试一次
+        if error_code != "0" or not rows:
+            StockService._ensure_bs_login(force=True)
+            error_code, rows = _query()
+
+        return [
+            {
+                "date": row[0],
+                "open": float(row[1]) if row[1] else 0.0,
+                "high": float(row[2]) if row[2] else 0.0,
+                "low": float(row[3]) if row[3] else 0.0,
+                "close": float(row[4]) if row[4] else 0.0,
+                "volume": int(float(row[5])) if row[5] else 0,
+                "amount": float(row[6]) if row[6] else 0.0,
+                "change_percent": float(row[7]) if row[7] else 0.0,
+            }
+            for row in rows
+        ]
+
+    @staticmethod
+    def get_historical_data(
+        stock_code: str,
+        start_date: str,
+        end_date: str,
+        frequency: str = "d",
+    ) -> Optional[List[Dict]]:
+        """
+        获取历史K线数据
+        主数据源东方财富（覆盖股票/ETF/LOF/指数），失败时回退 baostock
+        frequency: d=日线, w=周线, m=月线
+        """
+        try:
+            data = StockService._eastmoney_kline(
+                stock_code, start_date, end_date, frequency
+            )
+            if data:
+                return data
+        except Exception as e:
+            print(f"东方财富历史数据获取失败 {stock_code}: {e}")
+
+        try:
+            return StockService._baostock_kline(
+                stock_code, start_date, end_date, frequency
+            )
         except Exception as e:
             print(f"获取历史数据错误: {e}")
             return None
@@ -287,12 +399,14 @@ class StockService:
             if not realtime:
                 return None
 
-            market = "SH" if stock_code.startswith("6") else "SZ"
+            market = StockService._market_prefix(stock_code).upper()
             return {
                 "code": stock_code,
                 "name": realtime["name"],
                 "market": market,
-                "industry": realtime["name"],
+                # 腾讯实时接口不返回行业分类，留空让前端显示占位符，
+                # 不要拿 name 顶替（那会让详情页显示「所属行业：贵州茅台」）
+                "industry": None,
                 "updated_at": datetime.now(),
             }
         except Exception as e:
@@ -300,33 +414,56 @@ class StockService:
             return None
 
     @staticmethod
+    def _eastmoney_suggest(keyword: str) -> List[Dict[str, str]]:
+        """
+        东方财富搜索建议接口，覆盖全市场股票 / ETF / LOF / 指数
+        MktNum: 0=深市, 1=沪市（其余如 150=场外基金无K线，过滤掉）
+        """
+        resp = StockService._eastmoney_get(
+            "searchapi.eastmoney.com/api/suggest/get",
+            {
+                "input": keyword,
+                "type": "14",
+                "token": "D43BF722C8E33BDC906FB84D85E326E8",
+                "count": 20,
+            },
+        )
+        items = (resp.get("QuotationCodeTable") or {}).get("Data") or []
+
+        result = []
+        seen = set()
+        for item in items:
+            code = item.get("Code")
+            name = item.get("Name")
+            if not code or not name or item.get("MktNum") not in ("0", "1"):
+                continue
+            if code in seen:
+                continue
+            seen.add(code)
+            result.append({"code": code, "name": name})
+        return result
+
+    @staticmethod
     def get_stock_list(keyword: Optional[str] = None) -> List[Dict[str, str]]:
         """
-        获取股票列表（支持模糊匹配）
-        优先从 baostock 获取，失败时使用预置列表
+        获取股票列表（支持代码/名称模糊匹配，覆盖股票与场内基金）
+        有关键词时走东方财富搜索，无关键词时返回预置热门列表
         """
-        result = []
+        if not keyword:
+            return _POPULAR_STOCKS[:100]
+
         try:
-            StockService._ensure_bs_login()
-            rs = bs.query_all_stock(day=datetime.now().strftime("%Y-%m-%d"))
-            while (rs.error_code == "0") and rs.next():
-                row = rs.get_row_data()
-                code = row[0].replace("sh.", "").replace("sz.", "")
-                name = row[1]
-                result.append({"code": code, "name": name})
+            result = StockService._eastmoney_suggest(keyword)
+            if result:
+                return result[:100]
         except Exception as e:
-            print(f"baostock 获取股票列表失败，使用预置列表: {e}")
+            print(f"东方财富搜索失败，回退预置列表: {e}")
 
-        if not result:
-            result = _POPULAR_STOCKS.copy()
-
-        if keyword:
-            keyword_lower = keyword.lower()
-            result = [
-                s for s in result
-                if keyword_lower in s["code"].lower() or keyword_lower in s["name"].lower()
-            ]
-        return result[:100]
+        keyword_lower = keyword.lower()
+        return [
+            s for s in _POPULAR_STOCKS
+            if keyword_lower in s["code"].lower() or keyword_lower in s["name"].lower()
+        ][:100]
 
     @staticmethod
     def get_all_realtime_data() -> List[Dict[str, Any]]:
