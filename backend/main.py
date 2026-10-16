@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from api.stocks import router as stocks_router
 from api.funds import router as funds_router
 from api.comparison import router as comparison_router
@@ -14,6 +15,7 @@ from api.calendar import router as calendar_router
 from api.thesis import router as thesis_router
 from api.industry_report import router as industry_report_router
 from api.market import router as market_router
+from api.strategy import router as strategy_router
 from tasks.scheduler import init_database_and_cache, start_scheduler, stop_scheduler
 
 
@@ -60,6 +62,7 @@ app.include_router(calendar_router)
 app.include_router(thesis_router)
 app.include_router(industry_report_router)
 app.include_router(market_router)
+app.include_router(strategy_router)
 
 
 @app.get("/")
@@ -77,7 +80,7 @@ async def health_check():
     """健康检查"""
     return {
         "status": "ok",
-        "timestamp": "2024-01-01T00:00:00"
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 

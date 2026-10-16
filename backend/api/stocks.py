@@ -4,6 +4,10 @@ from datetime import datetime, timedelta
 from services.stock_service import StockService
 from services.data_service import DataService
 from services.cache_service import CacheService
+from services.history_loader import (
+    WARMUP_DAYS, load_history_with_warmup, resolve_period_range
+)
+from services.indicator_service import compute_ma, compute_macd
 from models.database import get_db
 from models.schemas import (
     StockInfo, StockListItem, RealtimeData,
@@ -14,7 +18,7 @@ router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
 
 @router.get("/realtime/{code}", response_model=RealtimeData)
-async def get_realtime_stock(code: str):
+def get_realtime_stock(code: str):
     """获取单只股票实时行情"""
     cached_data = CacheService.get_cached_realtime(code)
     if cached_data:
@@ -34,7 +38,7 @@ async def get_realtime_stock(code: str):
 
 
 @router.get("/history/{code}")
-async def get_stock_history(
+def get_stock_history(
     code: str,
     start: Optional[str] = None,
     end: Optional[str] = None,
@@ -42,25 +46,15 @@ async def get_stock_history(
     frequency: Optional[str] = Query("d", description="K线频率: d=日线, w=周线, m=月线"),
 ):
     """
-    获取股票历史K线数据
-    数据来源优先级: Redis缓存 > SQLite数据库 > baostock远程获取
+    获取股票/场内基金历史K线数据（含 MACD 指标）
+    数据来源优先级: Redis缓存 > SQLite数据库 > 东方财富/baostock 远程获取
     增量更新由定时任务负责，API层优先从本地返回，仅在本地无数据时才远程获取
     """
-    if not start or not end:
-        end_date = datetime.now()
-        if period == "1m":
-            start_date = end_date - timedelta(days=30)
-        elif period == "3m":
-            start_date = end_date - timedelta(days=90)
-        elif period == "6m":
-            start_date = end_date - timedelta(days=180)
-        elif period == "1y":
-            start_date = end_date - timedelta(days=365)
-        else:  # all
-            start_date = end_date - timedelta(days=3650)
+    if frequency not in ("d", "w", "m"):
+        raise HTTPException(status_code=400, detail="frequency 仅支持 d / w / m")
 
-        start = start_date.strftime("%Y-%m-%d")
-        end = end_date.strftime("%Y-%m-%d")
+    if not start or not end:
+        start, end = resolve_period_range(period)
 
     # 1. 检查 Redis 缓存（最快路径，毫秒级）
     cached_data = CacheService.get_cached_history(code, start, end, frequency)
@@ -68,28 +62,26 @@ async def get_stock_history(
         import json
         return json.loads(cached_data)
 
-    # 2. 从 SQLite 数据库加载（已持久化，毫秒级）
-    db_data = DataService.load_from_database(code, start, end, frequency)
+    # 2. 本地/远程加载，多取一段预热数据供 MACD 收敛
+    data = load_history_with_warmup(
+        code, start, end, frequency, WARMUP_DAYS[frequency]
+    )
 
-    if db_data and len(db_data) >= 5:
-        # 数据库有足够数据，直接返回，增量更新由定时任务负责
-        import json
-        CacheService.set_cached_history(code, start, end, frequency, json.dumps(db_data))
-        return db_data
+    if not data:
+        return []
 
-    # 3. 数据库无数据，首次访问：从 baostock 拉取并持久化到 SQLite
-    api_data = StockService.get_historical_data(code, start, end, frequency)
-    if api_data:
-        DataService.save_to_database(code, api_data, frequency)
-        import json
-        CacheService.set_cached_history(code, start, end, frequency, json.dumps(api_data))
-        return api_data
+    # 3. 在含预热段的全量上算指标，再裁剪回请求区间
+    compute_macd(data)
+    compute_ma(data, (5, 20, 60))
+    result = [row for row in data if row["date"] >= start]
 
-    return []
+    import json
+    CacheService.set_cached_history(code, start, end, frequency, json.dumps(result))
+    return result
 
 
 @router.get("/info/{code}", response_model=StockInfo)
-async def get_stock_info(code: str):
+def get_stock_info(code: str):
     """获取股票基本信息"""
     db = next(get_db())
     try:
@@ -120,19 +112,19 @@ async def get_stock_info(code: str):
 
 
 @router.get("/list", response_model=List[StockListItem])
-async def get_stock_list(keyword: Optional[str] = Query(None, description="搜索关键词")):
+def get_stock_list(keyword: Optional[str] = Query(None, description="搜索关键词")):
     """获取股票列表"""
     return StockService.get_stock_list(keyword)
 
 
 @router.get("/search", response_model=List[StockListItem])
-async def search_stocks(keyword: str = Query(..., min_length=1, description="搜索关键词")):
+def search_stocks(keyword: str = Query(..., min_length=1, description="搜索关键词")):
     """搜索股票"""
     return StockService.get_stock_list(keyword)
 
 
 @router.get("/batch-realtime")
-async def get_batch_realtime(codes: str = Query(..., description="股票代码，逗号分隔")):
+def get_batch_realtime(codes: str = Query(..., description="股票代码，逗号分隔")):
     """批量获取实时行情"""
     code_list = [c.strip() for c in codes.split(',')]
     result = []

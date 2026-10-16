@@ -1,7 +1,7 @@
 """行业研究报告生成服务
 
 参考"7步框架"（宏观→景气→研报→龙头→资金→估值→催化剂）写 Prompt 模板，
-调用 Kimi（与 policy_service 共享 API Key），支持流式输出 + SQLite 持久化。
+通过 llm_client 调用可选厂商（Kimi / Claude），支持流式输出 + SQLite 持久化。
 """
 from __future__ import annotations
 
@@ -12,12 +12,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Dict, Generator, List, Optional
 
-import requests
-
-# ---------- Kimi 配置（复用 policy_service 同套 env） ----------
-KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
-KIMI_BASE = "https://api.moonshot.cn/v1"
-KIMI_MODEL = os.environ.get("KIMI_REPORT_MODEL", "moonshot-v1-128k")
+from services import llm_client
 
 # ---------- DB ----------
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -181,7 +176,7 @@ def _build_prompt(
 现在开始撰写报告："""
 
 
-# ---------- Kimi 流式调用 ----------
+# ---------- 流式调用 ----------
 
 def stream_report(
     industry: str,
@@ -189,69 +184,52 @@ def stream_report(
     custom_requirement: Optional[str] = None,
     focus_dims: Optional[List[str]] = None,
     temperature: float = 0.6,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Generator[Dict[str, Any], None, None]:
     """
     流式生成行业报告。
 
     Yields:
-        {"type": "meta", "industry": ..., "model": ...}
+        {"type": "meta", "industry": ..., "provider": ..., "model": ...}
         {"type": "delta", "text": "..."}     ← 多次
         {"type": "done", "id": ..., "duration_ms": ..., "tokens": ...}
         {"type": "error", "message": ...}
     """
-    if not KIMI_API_KEY:
-        yield {"type": "error", "message": "未配置 KIMI_API_KEY 环境变量"}
+    try:
+        provider, model = llm_client.resolve(provider, model)
+    except ValueError as e:
+        yield {"type": "error", "message": str(e)}
         return
 
     prompt = _build_prompt(industry, style, custom_requirement, focus_dims)
     started = datetime.now()
-    yield {"type": "meta", "industry": industry, "model": KIMI_MODEL, "started_at": started.isoformat()}
-
-    headers = {
-        "Authorization": f"Bearer {KIMI_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": KIMI_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": temperature,
-        "stream": True,
+    yield {
+        "type": "meta",
+        "industry": industry,
+        "provider": provider,
+        "model": model,
+        "started_at": started.isoformat(),
     }
 
     full_text_parts: List[str] = []
     try:
-        with requests.post(
-            f"{KIMI_BASE}/chat/completions",
-            headers=headers, json=payload, stream=True, timeout=180,
-        ) as r:
-            if r.status_code != 200:
-                yield {"type": "error", "message": f"Kimi HTTP {r.status_code}: {r.text[:300]}"}
-                return
-            # 强制 UTF-8 解码，避免 requests 默认按 ISO-8859-1 解 SSE 字节流
-            r.encoding = "utf-8"
-            for raw in r.iter_lines(decode_unicode=True):
-                if not raw:
-                    continue
-                if raw.startswith("data: "):
-                    data_str = raw[6:]
-                    if data_str.strip() == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(data_str)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content")
-                        if delta:
-                            full_text_parts.append(delta)
-                            yield {"type": "delta", "text": delta}
-                    except json.JSONDecodeError:
-                        continue
-    except requests.exceptions.RequestException as e:
-        yield {"type": "error", "message": f"Kimi 请求异常: {e}"}
+        for delta in llm_client.stream_chat(
+            [{"role": "user", "content": prompt}],
+            provider=provider,
+            model=model,
+            temperature=temperature,
+        ):
+            full_text_parts.append(delta)
+            yield {"type": "delta", "text": delta}
+    except llm_client.LLMError as e:
+        yield {"type": "error", "message": str(e)}
         return
 
     full_text = "".join(full_text_parts)
     duration_ms = int((datetime.now() - started).total_seconds() * 1000)
 
-    # 落库
+    # 落库（provider 编进 model 列，避免 schema 迁移）
     rid: Optional[int] = None
     try:
         with _conn() as c:
@@ -262,7 +240,7 @@ def stream_report(
                 (
                     industry, style, custom_requirement,
                     json.dumps(focus_dims or [], ensure_ascii=False),
-                    full_text, KIMI_MODEL, len(full_text), duration_ms,
+                    full_text, f"{provider}/{model}", len(full_text), duration_ms,
                     "completed", datetime.now().isoformat(),
                 ),
             )

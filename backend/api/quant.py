@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/quant", tags=["quant"])
 
 
 @router.get("/screen")
-async def smart_screen(type: str = Query("cxg", description="选股类型: cxg/cxd/cxfl/cxsl/ljqs/ljqd/lxsz/lxxd/xstp/xxtp/xzjp")):
+def smart_screen(type: str = Query("cxg", description="选股类型: cxg/cxd/cxfl/cxsl/ljqs/ljqd/lxsz/lxxd/xstp/xxtp/xzjp")):
     """智能选股 - 技术面+市场面筛选"""
     data = QuantService.get_smart_screen(type)
     if not data:
@@ -24,7 +24,7 @@ async def smart_screen(type: str = Query("cxg", description="选股类型: cxg/c
 
 
 @router.get("/hot-stocks")
-async def hot_stocks():
+def hot_stocks():
     """东方财富人气榜"""
     data = QuantService.get_hot_stocks()
     if not data:
@@ -33,7 +33,7 @@ async def hot_stocks():
 
 
 @router.get("/market-valuation", response_model=MarketValuation)
-async def market_valuation():
+def market_valuation():
     """全市场估值统计"""
     data = QuantService.get_market_valuation()
     if not data:
@@ -42,14 +42,14 @@ async def market_valuation():
 
 
 @router.post("/fundamental-screen")
-async def fundamental_screen(filters: FundamentalFilter):
+def fundamental_screen(filters: FundamentalFilter):
     """多因子选股 - 基本面筛选"""
     data = QuantService.get_stock_fundamental_screen(filters.model_dump(exclude_none=True))
     return data
 
 
 @router.get("/score/{code}")
-async def stock_score(code: str):
+def stock_score(code: str):
     """单只股票综合评分（含多流派分析）"""
     data = QuantService.get_stock_score(code)
     if not data:
@@ -69,7 +69,7 @@ async def list_styles():
 
 
 @router.get("/style-score/{code}")
-async def style_score(code: str):
+def style_score(code: str):
     """单只股票的多流派评分详情"""
     data = QuantService.get_stock_score(code)
     if not data:
@@ -92,7 +92,7 @@ async def style_score(code: str):
 
 
 @router.get("/market-cycle")
-async def market_cycle():
+def market_cycle():
     """市场周期解读 —— 基于席勒/马克斯的周期思想"""
     market = QuantService.get_market_valuation()
     if not market:
@@ -133,7 +133,7 @@ async def style_top(style_key: str, limit: int = Query(10, ge=1, le=50)):
 
 
 @router.get("/recommend")
-async def stock_recommendation(
+def stock_recommendation(
     limit: int = Query(20, ge=1, le=100, description="推荐数量"),
     style: Optional[str] = Query(None, description="按流派排序: graham_deep_value/buffett_quality/lynch_growth/marks_defensive"),
 ):
@@ -157,7 +157,7 @@ async def stock_recommendation(
 
 
 @router.get("/fund-recommend")
-async def fund_recommend(
+def fund_recommend(
     type: str = Query("全部", description="基金类型: 全部/股票型/混合型/债券型/指数型/QDII/FOF"),
     limit: int = Query(20, ge=1, le=100, description="推荐数量"),
 ):

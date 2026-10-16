@@ -7,6 +7,7 @@ import {
   FallOutlined,
 } from '@ant-design/icons';
 import StockChart from '../components/StockChart';
+import StrategySignalPanel from '../components/StrategySignalPanel';
 import { useTheme } from '../context/ThemeContext';
 import axios from 'axios';
 
@@ -190,6 +191,9 @@ function StockDetail() {
           ))}
         </Row>
       </Card>
+
+      {/* 技术策略综合信号 */}
+      <StrategySignalPanel stockCode={code} />
 
       {/* K 线图 */}
       <StockChart stockCode={code} stockName={name} />

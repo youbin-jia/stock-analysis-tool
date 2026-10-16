@@ -20,11 +20,13 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from bs4 import BeautifulSoup
 from services.cache_service import CacheService
+from services import llm_client
 
 
-KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
-KIMI_BASE = "https://api.moonshot.cn/v1"
-KIMI_MODEL = "moonshot-v1-32k"
+# LLM 厂商/模型（默认等价于原先的 Kimi moonshot-v1-32k）；
+# 若 KIMI_API_KEY 未配置，llm_client.resolve() 会回落到其他已配置厂商。
+POLICY_PROVIDER = os.environ.get("POLICY_LLM_PROVIDER", "kimi")
+POLICY_MODEL = os.environ.get("POLICY_LLM_MODEL", "moonshot-v1-32k")
 
 POLICY_STATE_KEY = "policy_scan:state"
 POLICY_RESULT_KEY = "policy_scan:result"
@@ -309,36 +311,18 @@ def fetch_article_text(url: str, max_len: int = 4000) -> str:
 
 
 # =========================================================
-# Kimi LLM 调用
+# LLM 调用（委托给 llm_client 共享层）
 # =========================================================
 
 def _kimi_chat(messages: List[Dict[str, str]], temperature: float = 0.3, max_retries: int = 2) -> Optional[str]:
-    headers = {
-        "Authorization": f"Bearer {KIMI_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": KIMI_MODEL,
-        "messages": messages,
-        "temperature": temperature,
-    }
-    for attempt in range(max_retries + 1):
-        try:
-            r = requests.post(f"{KIMI_BASE}/chat/completions",
-                              headers=headers, json=payload, timeout=60)
-            if r.status_code == 200:
-                data = r.json()
-                return data["choices"][0]["message"]["content"]
-            elif r.status_code == 429:
-                # rate limit
-                time.sleep(8 + attempt * 5)
-            else:
-                print(f"Kimi 错误 {r.status_code}: {r.text[:200]}")
-                return None
-        except Exception as e:
-            print(f"Kimi 调用异常 第{attempt+1}次: {e}")
-            time.sleep(3 + attempt * 2)
-    return None
+    return llm_client.chat(
+        messages,
+        provider=POLICY_PROVIDER,
+        model=POLICY_MODEL,
+        temperature=temperature,
+        max_retries=max_retries,
+        timeout=60,
+    )
 
 
 def _extract_json(text: str) -> Optional[Any]:

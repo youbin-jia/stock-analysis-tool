@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/funds", tags=["funds"])
 
 
 @router.get("/list", response_model=List[FundListItem])
-async def get_fund_list(keyword: Optional[str] = Query(None, description="搜索关键词")):
+def get_fund_list(keyword: Optional[str] = Query(None, description="搜索关键词")):
     """获取基金列表（带缓存）"""
     # 尝试从缓存获取全量列表
     if not keyword:

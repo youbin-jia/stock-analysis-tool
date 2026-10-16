@@ -5,9 +5,10 @@ import json
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from services import llm_client
 from services.industry_report_service import (
     PRESET_INDUSTRIES, PRESET_FOCUS_DIMS,
     stream_report, list_reports, get_report, delete_report,
@@ -22,20 +23,29 @@ class GenerateRequest(BaseModel):
     custom_requirement: Optional[str] = Field(None, description="自定义额外要求")
     focus_dims: Optional[List[str]] = Field(None, description="关注维度 key 列表（来自 /presets）")
     temperature: float = Field(0.6, ge=0.0, le=1.5)
+    provider: Optional[str] = Field(None, description="厂商 key，来自 /presets.providers")
+    model: Optional[str] = Field(None, description="模型 id，来自所选厂商的 models")
 
 
 @router.get("/presets")
 async def get_presets():
-    """获取预置行业 + 预置关注维度"""
-    return {
-        "industries": PRESET_INDUSTRIES,
-        "focus_dims": PRESET_FOCUS_DIMS,
-        "styles": [
-            {"key": "data_driven", "name": "数据驱动"},
-            {"key": "logic_driven", "name": "逻辑驱动"},
-            {"key": "stock_first", "name": "个股优先"},
-        ],
-    }
+    """获取预置行业 + 预置关注维度 + 可用 LLM 厂商"""
+    providers = llm_client.available_providers()
+    return JSONResponse(
+        content={
+            "industries": PRESET_INDUSTRIES,
+            "focus_dims": PRESET_FOCUS_DIMS,
+            "styles": [
+                {"key": "data_driven", "name": "数据驱动"},
+                {"key": "logic_driven", "name": "逻辑驱动"},
+                {"key": "stock_first", "name": "个股优先"},
+            ],
+            "providers": providers,
+            "default_provider": providers[0]["key"] if providers else None,
+        },
+        # 返回值依赖运行时 env，禁止浏览器缓存
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.post("/generate")
@@ -54,6 +64,8 @@ async def generate(req: GenerateRequest):
             custom_requirement=req.custom_requirement,
             focus_dims=req.focus_dims,
             temperature=req.temperature,
+            provider=req.provider,
+            model=req.model,
         ):
             yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 

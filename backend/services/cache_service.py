@@ -26,6 +26,7 @@ HISTORY_CACHE_TTL = 14400  # 历史数据缓存4小时（盘中数据变动慢�
 SECTOR_CACHE_TTL = 60  # 板块数据缓存60秒
 FUND_RANK_CACHE_TTL = 300  # 基金排行缓存5分钟
 QUANT_CACHE_TTL = 300  # 量化数据缓存5分钟
+STRATEGY_CACHE_TTL = 3600  # 策略信号缓存1小时（基于日线，盘中不变）
 
 
 class CacheService:
@@ -81,6 +82,27 @@ class CacheService:
             redis_client.setex(key, ttl, data)
         except Exception as e:
             print(f"Redis set history error: {e}")
+
+    @staticmethod
+    def get_cached_strategy(stock_code: str, period: str, frequency: str,
+                            holding: int) -> Optional[str]:
+        """获取缓存的策略信号"""
+        try:
+            key = f"strategy:{stock_code}:{frequency}:{period}:{holding}"
+            return redis_client.get(key)
+        except Exception as e:
+            print(f"Redis get strategy error: {e}")
+            return None
+
+    @staticmethod
+    def set_cached_strategy(stock_code: str, period: str, frequency: str,
+                            holding: int, data: str, ttl: int = STRATEGY_CACHE_TTL):
+        """缓存策略信号"""
+        try:
+            key = f"strategy:{stock_code}:{frequency}:{period}:{holding}"
+            redis_client.setex(key, ttl, data)
+        except Exception as e:
+            print(f"Redis set strategy error: {e}")
 
     @staticmethod
     def invalidate_cache(stock_code: str):
