@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Menu, Breadcrumb, Button } from 'antd';
+import { Layout, Menu, Breadcrumb, Button, Grid } from 'antd';
 import {
   FundOutlined,
   BarChartOutlined,
@@ -47,6 +47,9 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useTheme();
+  const screens = Grid.useBreakpoint();
+  const isMarketScenario = location.pathname === '/market-scenario';
+  const compactMarket = isMarketScenario && screens.md === false;
   const pathSegments = location.pathname.split('/').filter(Boolean);
 
   const isFundRoute = pathSegments[0] === 'fund' || pathSegments[0] === 'fund-comparison' || pathSegments[0] === 'low-position-funds' || pathSegments[0] === 'hot-sectors' || pathSegments[0] === 'quant-analysis' || pathSegments[0] === 'style-insight' || pathSegments[0] === 'style-tops' || pathSegments[0] === 'policy' || pathSegments[0] === 'books' || pathSegments[0] === 'calendar' || pathSegments[0] === 'thesis' || pathSegments[0] === 'industry-report';
@@ -201,8 +204,9 @@ function App() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+    <Layout className={isMarketScenario ? 'market-shell' : undefined} style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
       <Header
+        className={isMarketScenario ? 'market-app-header' : undefined}
         style={{
           position: 'fixed',
           top: 0,
@@ -254,6 +258,8 @@ function App() {
       <Layout style={{ marginTop: 56 }}>
         <Sider
           width={200}
+          collapsed={compactMarket}
+          collapsedWidth={56}
           style={{
             background: 'var(--bg-sider)',
             position: 'fixed',
@@ -271,7 +277,7 @@ function App() {
           />
         </Sider>
 
-        <Layout style={{ marginLeft: 200, padding: '20px 28px' }}>
+        <Layout style={{ marginLeft: compactMarket ? 56 : 200, padding: compactMarket ? '16px 12px' : '20px 28px', minWidth: 0 }}>
           <Breadcrumb
             items={getBreadcrumbItems()}
             style={{ marginBottom: 16 }}

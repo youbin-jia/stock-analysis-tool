@@ -85,6 +85,27 @@ class RequestConcurrencyTests(unittest.IsolatedAsyncioTestCase):
                             client, path, target, result
                         )
 
+    async def test_health_responds_while_index_scenario_is_loading(self):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            with patch("api.market.CacheService.get_cached_quant", return_value=None):
+                await self._check_concurrent_health(
+                    client, "/api/market/scenario",
+                    "api.market.ScenarioService.get_scenario", None,
+                )
+
+    async def test_health_responds_while_close_review_is_loading(self):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            await self._check_concurrent_health(
+                client, "/api/market/close-review",
+                "api.market.MarketReviewService.get_review", {"report": None},
+            )
+
     async def _check_concurrent_health(
         self, client, path, target, result, method="GET", json=None
     ):

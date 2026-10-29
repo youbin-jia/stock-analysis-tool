@@ -5,6 +5,8 @@ from services.stock_service import StockService
 from services.fund_service import FundService
 from services.cache_service import CacheService
 from services.data_service import DataService
+from services.market_review_service import MarketReviewService
+from services.scenario_service import INDEX_MAP, SHANGHAI
 from models.database import init_database
 
 scheduler = AsyncIOScheduler()
@@ -43,7 +45,7 @@ async def update_realtime_data():
         print(f"更新实时行情错误: {e}")
 
 
-async def update_daily_data():
+def update_daily_data():
     """
     每日收盘后增量更新历史数据
     每日15:30执行
@@ -167,6 +169,17 @@ async def init_database_and_cache():
         print(f"初始化错误: {e}")
 
 
+def update_market_reviews():
+    """Sync jobs use APScheduler's worker pool, keeping network I/O off the event loop."""
+    for index_code in INDEX_MAP:
+        try:
+            result = MarketReviewService.get_review(index_code, refresh=True)
+            if result["error"]:
+                print(f"指数复盘未更新 {index_code}: {result['error']}")
+        except Exception as exc:
+            print(f"指数复盘任务错误 {index_code}: {exc}")
+
+
 def start_scheduler():
     """
     启动定时任务调度器
@@ -198,6 +211,27 @@ def start_scheduler():
         minute=0,
         id='update_fund',
         replace_existing=True
+    )
+
+    scheduler.add_job(
+        update_market_reviews,
+        'cron',
+        day_of_week='mon-fri',
+        hour='15-17',
+        minute=30,
+        timezone=SHANGHAI,
+        id='update_market_reviews',
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        update_market_reviews,
+        'date',
+        run_date=datetime.now(SHANGHAI) + timedelta(seconds=5),
+        id='catch_up_market_reviews',
+        replace_existing=True,
     )
 
     scheduler.start()

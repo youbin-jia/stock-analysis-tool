@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Date, BigInteger
+from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Date, BigInteger, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
@@ -81,6 +81,15 @@ class FundHistory(Base):
     adjusted_nav = Column(Float)  # 复权净值（考虑份额拆分/分红）
     change_percent = Column(Float)  # 日涨跌幅
     updated_at = Column(DateTime)
+
+
+class IndexCloseReview(Base):
+    """按指数、交易日保存收盘复盘，盘中刷新不会覆盖已完成日线的结论。"""
+    __tablename__ = "index_close_reviews"
+
+    index_code = Column(String(10), primary_key=True)
+    trade_date = Column(Date, primary_key=True)
+    payload = Column(JSON, nullable=False)
 
 
 def init_database():
